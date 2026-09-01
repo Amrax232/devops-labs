@@ -1,0 +1,27 @@
+[project]
+name = "warehouse-inventory"
+version = "0.1.0"
+description = "Складской учёт — учебный проект по курсу «Методология и практики DevOps»"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [".venv", "migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "C4", "SIM"]
+ignore = ["B008"]  # Depends() в аргументах по умолчанию — стандартный приём FastAPI
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
+"migrations/env.py" = ["E402"]
+"tests/conftest.py" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore:.*does \\*not\\* support Decimal objects natively.*:UserWarning",
+]
