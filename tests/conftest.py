@@ -35,3 +35,30 @@ def clean_database() -> Iterator[None]:
 def client() -> Iterator[TestClient]:
     with TestClient(app) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def unit_id(client: TestClient) -> int:
+    response = client.post("/api/v1/units", json={"code": "kg", "name": "Килограмм"})
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
+@pytest.fixture
+def supplier_id(client: TestClient) -> int:
+    response = client.post(
+        "/api/v1/suppliers",
+        json={"name": 'ООО "Метизы"', "inn": "7701234567", "email": "sales@metiz.example"},
+    )
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
+@pytest.fixture
+def material_id(client: TestClient, unit_id: int) -> int:
+    response = client.post(
+        "/api/v1/materials",
+        json={"sku": "MAT-001", "name": "Болт М8х40", "unit_id": unit_id, "min_stock": "50"},
+    )
+    assert response.status_code == 201
+    return response.json()["id"]
