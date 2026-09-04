@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from app import __version__
 from app.config import get_settings
 from app.errors import register_error_handlers
-from app.routers import health, units, suppliers, materials
+from app.routers import health, units, suppliers, materials, receipts
 
 settings = get_settings()
 logging.basicConfig(
@@ -32,6 +32,7 @@ app.include_router(health.router)
 app.include_router(units.router)
 app.include_router(suppliers.router)
 app.include_router(materials.router)
+app.include_router(receipts.router)
 
 
 @app.get("/", tags=["health"], summary="Информация о сервисе")
