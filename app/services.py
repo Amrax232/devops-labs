@@ -153,10 +153,8 @@ def list_materials(
 ) -> list[Material]:
     stmt = select(Material).options(selectinload(Material.unit)).order_by(Material.sku)
     if query:
-        pattern = f"%{query.lower()}%"
-        stmt = stmt.where(
-            func.lower(Material.name).like(pattern) | func.lower(Material.sku).like(pattern)
-        )
+        pattern = f"%{query}%"
+        stmt = stmt.where(Material.name.ilike(pattern) | Material.sku.ilike(pattern))
     if below_min:
         stmt = stmt.where(Material.quantity < Material.min_stock)
     return list(db.scalars(stmt))
@@ -319,7 +317,7 @@ def post_receipt(db: Session, receipt_id: int) -> Receipt:
 
     for item in receipt.items:
         material = _get_or_404(db, Material, item.material_id, "Материал")
-        material.quantity = Decimal(material.quantity) + Decimal(item.quantity)
+        material.quantity = Decimal(str(material.quantity)) + Decimal(str(item.quantity))
 
     receipt.status = ReceiptStatus.POSTED
     receipt.posted_at = utcnow()
@@ -352,7 +350,7 @@ def stock_report(db: Session, *, only_below_min: bool = False) -> StockReport:
             unit_code=unit_code,
             quantity=material.quantity,
             min_stock=material.min_stock,
-            below_min=Decimal(material.quantity) < Decimal(material.min_stock),
+            below_min=Decimal(str(material.quantity)) < Decimal(str(material.min_stock)),
         )
         for material, unit_code in db.execute(stmt).all()
     ]

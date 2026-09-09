@@ -55,6 +55,7 @@ def test_supplier_can_be_deactivated(client: TestClient, supplier_id: int) -> No
     assert client.get("/api/v1/suppliers?only_active=true").json() == []
 
 
-def test_material_search_by_name(client: TestClient, material_id: int) -> None:
-    assert len(client.get("/api/v1/materials?q=болт").json()) == 1
+def test_material_search_by_name_and_sku(client: TestClient, material_id: int) -> None:
+    assert len(client.get("/api/v1/materials?q=Болт").json()) == 1
+    assert len(client.get("/api/v1/materials?q=mat-001").json()) == 1
     assert client.get("/api/v1/materials?q=труба").json() == []

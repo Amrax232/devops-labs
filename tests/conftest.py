@@ -32,7 +32,7 @@ def clean_database() -> Iterator[None]:
 
 
 @pytest.fixture
-def client() -> Iterator[TestClient]:
+def client(clean_database: None) -> Iterator[TestClient]:
     with TestClient(app) as test_client:
         yield test_client
 
