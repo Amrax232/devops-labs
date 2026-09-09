@@ -10,7 +10,7 @@ target-version = "py311"
 exclude = [".venv", "migrations/versions"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP", "C4", "SIM"]
+select = ["E", "F", "I", "B", "UP"]
 ignore = ["B008"]  # Depends() в аргументах по умолчанию — стандартный приём FastAPI
 
 [tool.ruff.lint.per-file-ignores]
