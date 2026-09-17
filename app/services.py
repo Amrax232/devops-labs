@@ -98,8 +98,13 @@ def create_supplier(db: Session, data: SupplierCreate) -> Supplier:
     return supplier
 
 
-def list_suppliers(db: Session, *, only_active: bool = False) -> list[Supplier]:
+def list_suppliers(
+    db: Session, *, query: str | None = None, only_active: bool = False
+) -> list[Supplier]:
     stmt = select(Supplier).order_by(Supplier.name)
+    if query:
+        pattern = f"%{query}%"
+        stmt = stmt.where(Supplier.name.ilike(pattern) | Supplier.inn.ilike(pattern))
     if only_active:
         stmt = stmt.where(Supplier.is_active.is_(True))
     return list(db.scalars(stmt))
