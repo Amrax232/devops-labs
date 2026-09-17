@@ -64,8 +64,15 @@ curl -X POST http://localhost:8000/api/v1/suppliers \
   -d '{"name": "ООО \"Метизы\"", "inn": "7701234567", "email": "sales@metiz.example"}'
 # 201 {"id":1,"name":"ООО \"Метизы\"","inn":"7701234567","email":"sales@metiz.example","is_active":true}
 
+# поиск по названию или ИНН (без учёта регистра)
+curl 'http://localhost:8000/api/v1/suppliers?q=Метизы'
+curl 'http://localhost:8000/api/v1/suppliers?q=770123'
+
 # только активные
 curl 'http://localhost:8000/api/v1/suppliers?only_active=true'
+
+# поиск и фильтр сочетаются
+curl 'http://localhost:8000/api/v1/suppliers?q=Метизы&only_active=true'
 
 # деактивировать
 curl -X PATCH http://localhost:8000/api/v1/suppliers/1 \
