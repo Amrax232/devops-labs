@@ -55,6 +55,33 @@ def test_supplier_can_be_deactivated(client: TestClient, supplier_id: int) -> No
     assert client.get("/api/v1/suppliers?only_active=true").json() == []
 
 
+def test_supplier_search_by_name_and_inn(client: TestClient, supplier_id: int) -> None:
+    """Поиск по подстроке в названии и ИНН, без учёта регистра."""
+    client.post(
+        "/api/v1/suppliers",
+        json={"name": "АО Крепёж", "inn": "7809998877", "email": "info@krepezh.example"},
+    )
+
+    by_name = client.get("/api/v1/suppliers?q=Метизы").json()
+    by_inn = client.get("/api/v1/suppliers?q=780999").json()
+    by_case = client.get("/api/v1/suppliers?q=метизы").json()
+
+    assert len(by_name) == 1 and by_name[0]["inn"] == "7701234567"
+    assert len(by_inn) == 1 and by_inn[0]["name"] == "АО Крепёж"
+    assert len(by_case) == 1
+    assert client.get("/api/v1/suppliers?q=Трубы").json() == []
+
+
+def test_supplier_search_combines_with_active_filter(
+    client: TestClient, supplier_id: int
+) -> None:
+    """Поиск и фильтр активности работают вместе."""
+    client.patch(f"/api/v1/suppliers/{supplier_id}", json={"is_active": False})
+
+    assert len(client.get("/api/v1/suppliers?q=Метизы").json()) == 1
+    assert client.get("/api/v1/suppliers?q=Метизы&only_active=true").json() == []
+
+
 def test_material_search_by_name_and_sku(client: TestClient, material_id: int) -> None:
     assert len(client.get("/api/v1/materials?q=Болт").json()) == 1
     assert len(client.get("/api/v1/materials?q=mat-001").json()) == 1
