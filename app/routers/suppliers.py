@@ -12,10 +12,11 @@ router = APIRouter(prefix="/api/v1/suppliers", tags=["suppliers"])
 
 @router.get("", response_model=list[SupplierRead], summary="Список поставщиков")
 def list_suppliers(
+    q: str | None = Query(default=None, description="Поиск по названию или ИНН"),
     only_active: bool = Query(default=False, description="Только активные поставщики"),
     db: Session = Depends(get_db),
 ) -> list[SupplierRead]:
-    return services.list_suppliers(db, only_active=only_active)
+    return services.list_suppliers(db, query=q, only_active=only_active)
 
 
 @router.post(
