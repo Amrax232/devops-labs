@@ -338,11 +338,25 @@ def delete_receipt(db: Session, receipt_id: int) -> None:
 
 
 # ----------------------------------------------------------------------------- отчёты
-def stock_report(db: Session, *, only_below_min: bool = False) -> StockReport:
+STOCK_ORDER_FIELDS = {
+    "sku": Material.sku,
+    "name": Material.name,
+    "quantity": Material.quantity,
+}
+
+
+def stock_report(
+    db: Session, *, only_below_min: bool = False, order_by: str = "sku"
+) -> StockReport:
+    if order_by not in STOCK_ORDER_FIELDS:
+        raise BusinessRuleError(
+            "Недопустимое поле сортировки",
+            {"order_by": order_by, "allowed": sorted(STOCK_ORDER_FIELDS)},
+        )
     stmt = (
         select(Material, Unit.code)
         .join(Unit, Material.unit_id == Unit.id)
-        .order_by(Material.sku)
+        .order_by(STOCK_ORDER_FIELDS[order_by])
     )
     if only_below_min:
         stmt = stmt.where(Material.quantity < Material.min_stock)

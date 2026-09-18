@@ -15,9 +15,10 @@ router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
 @router.get("/stock", response_model=StockReport, summary="Остатки на складе")
 def stock(
     below_min: bool = Query(default=False, description="Только позиции ниже минимума"),
+    order_by: str = Query(default="sku", description="Сортировка: sku, name или quantity"),
     db: Session = Depends(get_db),
 ) -> StockReport:
-    return services.stock_report(db, only_below_min=below_min)
+    return services.stock_report(db, only_below_min=below_min, order_by=order_by)
 
 
 @router.get("/receipts", response_model=ReceiptsReport, summary="Поступления по поставщикам")
