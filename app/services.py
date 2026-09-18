@@ -346,7 +346,11 @@ STOCK_ORDER_FIELDS = {
 
 
 def stock_report(
-    db: Session, *, only_below_min: bool = False, order_by: str = "sku"
+    db: Session,
+    *,
+    only_below_min: bool = False,
+    order_by: str = "sku",
+    limit: int | None = None,
 ) -> StockReport:
     if order_by not in STOCK_ORDER_FIELDS:
         raise BusinessRuleError(
@@ -360,6 +364,8 @@ def stock_report(
     )
     if only_below_min:
         stmt = stmt.where(Material.quantity < Material.min_stock)
+    if limit is not None:
+        stmt = stmt.limit(limit)
 
     rows = [
         StockRow(
