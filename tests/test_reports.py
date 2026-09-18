@@ -68,3 +68,25 @@ def test_receipts_report_respects_period(
     outside = client.get("/api/v1/reports/receipts?date_from=2026-10-01").json()
     assert inside["rows"][0]["receipts_count"] == 1
     assert outside["rows"] == []
+
+
+def test_stock_report_can_be_sorted(client: TestClient, unit_id: int) -> None:
+    """Сортировка отчёта по имени материала."""
+    for sku, name in [("MAT-003", "Труба"), ("MAT-002", "Гайка")]:
+        client.post(
+            "/api/v1/materials",
+            json={"sku": sku, "name": name, "unit_id": unit_id},
+        )
+
+    default_order = client.get("/api/v1/reports/stock").json()
+    by_name = client.get("/api/v1/reports/stock?order_by=name").json()
+
+    assert [r["sku"] for r in default_order["rows"]] == ["MAT-002", "MAT-003"]
+    assert [r["name"] for r in by_name["rows"]] == ["Гайка", "Труба"]
+
+
+def test_stock_report_rejects_unknown_order_field(client: TestClient) -> None:
+    """Недопустимое поле сортировки возвращает business_rule_violated."""
+    response = client.get("/api/v1/reports/stock?order_by=price")
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "business_rule_violated"
