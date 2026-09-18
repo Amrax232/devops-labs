@@ -68,3 +68,26 @@ def test_receipts_report_respects_period(
     outside = client.get("/api/v1/reports/receipts?date_from=2026-10-01").json()
     assert inside["rows"][0]["receipts_count"] == 1
     assert outside["rows"] == []
+
+
+
+def test_stock_report_can_be_limited(client: TestClient, unit_id: int) -> None:
+    """Параметр limit ограничивает число строк в отчёте."""
+    for sku in ("MAT-003", "MAT-002", "MAT-004"):
+        client.post(
+            "/api/v1/materials",
+            json={"sku": sku, "name": sku, "unit_id": unit_id},
+        )
+
+    full = client.get("/api/v1/reports/stock").json()
+    limited = client.get("/api/v1/reports/stock?limit=2").json()
+
+    assert full["positions"] == 3
+    assert limited["positions"] == 2
+    assert [r["sku"] for r in limited["rows"]] == ["MAT-002", "MAT-003"]
+
+
+def test_stock_report_rejects_invalid_limit(client: TestClient) -> None:
+    """limit=0 отклоняется валидацией."""
+    response = client.get("/api/v1/reports/stock?limit=0")
+    assert response.status_code == 422

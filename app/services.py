@@ -338,7 +338,9 @@ def delete_receipt(db: Session, receipt_id: int) -> None:
 
 
 # ----------------------------------------------------------------------------- отчёты
-def stock_report(db: Session, *, only_below_min: bool = False) -> StockReport:
+def stock_report(
+    db: Session, *, only_below_min: bool = False, limit: int | None = None
+) -> StockReport:
     stmt = (
         select(Material, Unit.code)
         .join(Unit, Material.unit_id == Unit.id)
@@ -346,6 +348,8 @@ def stock_report(db: Session, *, only_below_min: bool = False) -> StockReport:
     )
     if only_below_min:
         stmt = stmt.where(Material.quantity < Material.min_stock)
+    if limit is not None:
+        stmt = stmt.limit(limit)
 
     rows = [
         StockRow(
