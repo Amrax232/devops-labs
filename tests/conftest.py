@@ -15,11 +15,16 @@ TEST_DB = Path(tempfile.gettempdir()) / "warehouse_test.sqlite3"
 # Переменные окружения выставляются ДО импорта приложения: конфигурация читается при импорте.
 os.environ["DATABASE_URL"] = f"sqlite+pysqlite:///{TEST_DB}"
 os.environ["APP_ENV"] = "test"
+os.environ["AUTH_USERNAME"] = "admin"
+os.environ["AUTH_PASSWORD"] = "warehouse123"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app.db import Base, engine  # noqa: E402
 from app.main import app  # noqa: E402
+
+# Учётные данные, с которыми приложение запускается в тестах.
+AUTH = ("admin", "warehouse123")
 
 
 @pytest.fixture(autouse=True)
@@ -33,6 +38,15 @@ def clean_database() -> Iterator[None]:
 
 @pytest.fixture
 def client(clean_database: None) -> Iterator[TestClient]:
+    """Клиент с авторизацией — для тестов бизнес-логики."""
+    with TestClient(app) as test_client:
+        test_client.auth = AUTH
+        yield test_client
+
+
+@pytest.fixture
+def anonymous_client(clean_database: None) -> Iterator[TestClient]:
+    """Клиент без авторизации — для тестов контроля доступа."""
     with TestClient(app) as test_client:
         yield test_client
 
