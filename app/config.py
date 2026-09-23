@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     # Показывать ли SQL-запросы в логах (удобно при отладке).
     sql_echo: bool = False
 
+    # Учётная запись для доступа к API (HTTP Basic).
+    auth_username: str = "admin"
+    auth_password: str = "admin"
+
 
 @lru_cache
 def get_settings() -> Settings:

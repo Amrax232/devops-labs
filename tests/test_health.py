@@ -18,4 +18,4 @@ def test_readyz_reports_database(client: TestClient) -> None:
 def test_root_returns_service_info(client: TestClient) -> None:
     response = client.get("/")
     assert response.status_code == 200
-    assert response.json()["version"] == "0.1.0"
+    assert response.json()["version"] == "0.2.0"
