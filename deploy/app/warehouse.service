@@ -1,0 +1,47 @@
+# systemd-сервис приложения «Складской учёт».
+# Устанавливается в /etc/systemd/system/warehouse.service
+
+[Unit]
+Description=Warehouse inventory API (складской учёт)
+# Стартуем после появления сети; база может быть ещё недоступна — приложение
+# переживёт это и будет перезапущено (см. Restart ниже).
+After=network-online.target
+Wants=network-online.target
+# Если сервис падает чаще 5 раз за минуту — systemd перестаёт его поднимать,
+# чтобы не крутить бесконечный цикл перезапусков (сброс: systemctl reset-failed).
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=warehouse
+Group=warehouse
+WorkingDirectory=/opt/warehouse/current
+
+# Секреты приходят из отдельного файла, а не из unit-файла и не из кода.
+EnvironmentFile=/etc/warehouse/warehouse.env
+
+ExecStart=/opt/warehouse/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Автоматическое восстановление при аварийном завершении.
+Restart=always
+RestartSec=5
+
+# Ограничение привилегий: принцип минимальных прав.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+# Журналирование в journald.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=warehouse
+
+[Install]
+WantedBy=multi-user.target

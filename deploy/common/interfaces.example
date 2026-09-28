@@ -1,0 +1,22 @@
+# Пример /etc/network/interfaces для Debian 12 в VirtualBox.
+# enp0s3 — адаптер 1 (NAT): нужен только для доступа в интернет за пакетами.
+# enp0s8 — адаптер 2 (виртуальная сеть хоста): постоянный адрес лабораторной сети.
+#
+# Имена интерфейсов проверьте командой: ip -br link
+
+source /etc/network/interfaces.d/*
+
+auto lo
+iface lo inet loopback
+
+# Внешний доступ (apt, pip) через NAT, адрес выдаёт DHCP VirtualBox.
+allow-hotplug enp0s3
+iface enp0s3 inet dhcp
+
+# Лабораторная сеть: постоянный адрес.
+#   сервер приложения — 192.168.56.10
+#   сервер базы данных — 192.168.56.11
+auto enp0s8
+iface enp0s8 inet static
+    address 192.168.56.10
+    netmask 255.255.255.0
