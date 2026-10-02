@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Сервер базы данных: установка PostgreSQL, база и пользователь приложения.
 #
-# Запуск (от root на машине warehouse-db):
+# Запуск (от root на машине db):
 #   DB_PASSWORD='<пароль>' bash 10-install-postgres.sh
 #
 # Пароль НЕ хранится в репозитории: он передаётся переменной окружения и
@@ -67,7 +67,7 @@ sed -i "s/^#\?listen_addresses.*/listen_addresses = 'localhost,${DB_IP}'/" \
 
 HBA_LINE="host    ${DB_NAME}    ${DB_USER}    ${APP_IP}/32    scram-sha-256"
 if ! grep -qF "${HBA_LINE}" "${PG_CONF_DIR}/pg_hba.conf"; then
-    printf '\n# Приложение подключается только с сервера warehouse-app\n%s\n' \
+    printf '\n# Приложение подключается только с сервера app\n%s\n' \
         "${HBA_LINE}" >> "${PG_CONF_DIR}/pg_hba.conf"
 fi
 

@@ -4,11 +4,11 @@
 
 | Требование задания | Где реализовано |
 |---|---|
-| 1. Две Linux-машины без графики | Debian 12 netinst: `warehouse-app`, `warehouse-db` |
+| 1. Две Linux-машины без графики | Debian 13 netinst: `app`, `db` |
 | 2. Сеть, постоянные адреса, SSH по ключам | `common/interfaces.example`, `common/00-base-setup.sh`, `common/ssh-hardening.conf` |
 | 3. Запрет root по SSH, отдельные пользователи | `PermitRootLogin no`; `deployer` — администрирование, `warehouse` — запуск сервиса |
 | 4. Права на файлы и каталоги | `10-install-runtime.sh`: `/opt/warehouse` 750, `/etc/warehouse/warehouse.env` 640 root:warehouse |
-| 5. Среда выполнения и СУБД | `app/10-install-runtime.sh` (Python 3.11), `db/10-install-postgres.sh` (PostgreSQL 15) |
+| 5. Среда выполнения и СУБД | `app/10-install-runtime.sh` (Python 3.13), `db/10-install-postgres.sh` (PostgreSQL 17) |
 | 6. База и пользователь СУБД с минимальными правами | роль `warehouse` без SUPERUSER/CREATEDB/CREATEROLE, `REVOKE ALL ... FROM PUBLIC` |
 | 7. Развёртывание без контейнеров | `app/20-deploy-app.sh`: git + venv + миграции |
 | 8. systemd-сервис | `app/warehouse.service`, `systemctl enable` в скрипте выкладки |
@@ -23,7 +23,7 @@
 ### 1. Перезагрузка обеих машин
 
 ```bash
-sudo reboot        # сначала на warehouse-db, затем на warehouse-app
+sudo reboot        # сначала на db, затем на app
 ```
 
 После загрузки ничего руками не запускаем:
@@ -37,10 +37,10 @@ curl http://192.168.56.10:8000/readyz   # {"status":"ok","database":"ok"}
 ### 2. Диагностика при отказе базы данных
 
 ```bash
-# на warehouse-db
+# на db
 sudo systemctl stop postgresql
 
-# на warehouse-app
+# на app
 curl -s http://127.0.0.1:8000/healthz    # приложение живо: {"status":"ok",...}
 curl -s http://127.0.0.1:8000/readyz     # {"status":"degraded","database":"unavailable"}
 sudo journalctl -u warehouse -n 30       # в журнале видно ошибки подключения

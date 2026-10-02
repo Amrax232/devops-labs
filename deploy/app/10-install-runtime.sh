@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Сервер приложения: среда выполнения, служебный пользователь и каталоги.
 #
-# Запуск (от root на машине warehouse-app):  bash 10-install-runtime.sh
+# Запуск (от root на машине app):  bash 10-install-runtime.sh
 set -euo pipefail
 
 APP_USER="${APP_USER:-warehouse}"
