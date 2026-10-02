@@ -1,4 +1,4 @@
-# Пример /etc/network/interfaces для Debian 12 в VirtualBox.
+# Пример /etc/network/interfaces для Debian 13 в VirtualBox.
 # enp0s3 — адаптер 1 (NAT): нужен только для доступа в интернет за пакетами.
 # enp0s8 — адаптер 2 (виртуальная сеть хоста): постоянный адрес лабораторной сети.
 #

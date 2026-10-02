@@ -2,7 +2,7 @@
 # Выкладка приложения: код, зависимости, миграции, systemd-сервис.
 # Скрипт идемпотентен: первый запуск разворачивает, последующие обновляют.
 #
-# Запуск (от root на машине warehouse-app):
+# Запуск (от root на машине app):
 #   REPO_URL=https://github.com/<логин>/warehouse-inventory.git bash 20-deploy-app.sh
 set -euo pipefail
 

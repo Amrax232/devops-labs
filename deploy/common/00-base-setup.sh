@@ -32,8 +32,8 @@ apt-get install -y -qq sudo ufw curl ca-certificates gnupg vim less git
 
 echo "==> 2/5 имя машины и /etc/hosts"
 hostnamectl set-hostname "warehouse-${ROLE}"
-grep -q "$APP_IP" /etc/hosts || echo "$APP_IP  warehouse-app" >> /etc/hosts
-grep -q "$DB_IP" /etc/hosts || echo "$DB_IP  warehouse-db" >> /etc/hosts
+grep -q "$APP_IP" /etc/hosts || echo "$APP_IP  app" >> /etc/hosts
+grep -q "$DB_IP" /etc/hosts || echo "$DB_IP  db" >> /etc/hosts
 
 echo "==> 3/5 администратор $ADMIN_USER"
 if ! id "$ADMIN_USER" >/dev/null 2>&1; then
