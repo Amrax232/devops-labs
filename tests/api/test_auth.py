@@ -39,7 +39,5 @@ def test_health_stays_public(anonymous_client: TestClient) -> None:
 
 
 def test_write_operations_are_protected(anonymous_client: TestClient) -> None:
-    response = anonymous_client.post(
-        "/api/v1/units", json={"code": "kg", "name": "Килограмм"}
-    )
+    response = anonymous_client.post("/api/v1/units", json={"code": "kg", "name": "Килограмм"})
     assert response.status_code == 401

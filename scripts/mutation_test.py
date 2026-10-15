@@ -112,7 +112,7 @@ def find_mutations(tree: ast.AST, skip_lines: set[int]) -> list[Mutation]:
                         lambda n=node, i=i, new=new: n.ops.__setitem__(i, new()),
                     ))  # fmt: skip
 
-        elif isinstance(node, (ast.BinOp, ast.AugAssign)):
+        elif isinstance(node, ast.BinOp | ast.AugAssign):
             for new in BINOP_SWAPS.get(type(node.op), []):
                 found.append(Mutation(
                     line, f"{SYMBOLS[type(node.op)]} → {SYMBOLS[new]}",
