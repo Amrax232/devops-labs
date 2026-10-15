@@ -19,9 +19,7 @@ def stock(
     limit: int | None = Query(default=None, ge=1, le=500, description="Сколько строк вернуть"),
     db: Session = Depends(get_db),
 ) -> StockReport:
-    return services.stock_report(
-        db, only_below_min=below_min, order_by=order_by, limit=limit
-    )
+    return services.stock_report(db, only_below_min=below_min, order_by=order_by, limit=limit)
 
 
 @router.get("/receipts", response_model=ReceiptsReport, summary="Поступления по поставщикам")

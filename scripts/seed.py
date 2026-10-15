@@ -91,9 +91,7 @@ def seed_suppliers(db: Session) -> dict[str, int]:
     for name, inn, email in SUPPLIERS:
         supplier = db.scalar(select(Supplier).where(Supplier.inn == inn))
         if supplier is None:
-            supplier = services.create_supplier(
-                db, SupplierCreate(name=name, inn=inn, email=email)
-            )
+            supplier = services.create_supplier(db, SupplierCreate(name=name, inn=inn, email=email))
             print(f"  + поставщик {name}")
         ids[inn] = supplier.id
     return ids
@@ -118,9 +116,7 @@ def seed_materials(db: Session, unit_ids: dict[str, int]) -> dict[str, int]:
     return ids
 
 
-def seed_receipts(
-    db: Session, supplier_ids: dict[str, int], material_ids: dict[str, int]
-) -> None:
+def seed_receipts(db: Session, supplier_ids: dict[str, int], material_ids: dict[str, int]) -> None:
     for number, inn, received_at, post, items in RECEIPTS:
         if db.scalar(select(Receipt).where(Receipt.number == number)) is not None:
             continue

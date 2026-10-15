@@ -79,9 +79,7 @@ def upgrade() -> None:
         sa.Column("material_id", sa.Integer(), sa.ForeignKey("materials.id"), nullable=False),
         sa.Column("quantity", sa.Numeric(14, 3), nullable=False),
         sa.Column("price", sa.Numeric(14, 2), nullable=False, server_default="0"),
-        sa.UniqueConstraint(
-            "receipt_id", "material_id", name="uq_receipt_items_receipt_material"
-        ),
+        sa.UniqueConstraint("receipt_id", "material_id", name="uq_receipt_items_receipt_material"),
         sa.CheckConstraint("quantity > 0", name="ck_receipt_items_quantity_positive"),
         sa.CheckConstraint("price >= 0", name="ck_receipt_items_price_non_negative"),
     )
