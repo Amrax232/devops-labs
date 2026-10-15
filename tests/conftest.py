@@ -1,78 +1,29 @@
-"""Общие фикстуры тестов.
+"""Тестовая конфигурация, общая для всех уровней тестов.
 
-Тесты выполняются на отдельной SQLite-базе: они не требуют запущенного
-PostgreSQL и поэтому проходят на любой машине командой `make test`.
+Здесь только окружение — никаких импортов приложения. Благодаря этому
+unit-тесты (tests/unit) не поднимают FastAPI и базу и работают быстро, что
+важно для мутационного тестирования: тесты запускаются для каждого мутанта.
+
+Изоляция от рабочих данных:
+- приложение в тестах получает собственную SQLite-базу во временном каталоге,
+  уникальном для каждого запуска pytest;
+- интеграционные тесты работают с отдельной базой PostgreSQL, имя которой
+  обязано оканчиваться на «_test» (см. tests/integration/conftest.py);
+- логин и пароль API в тестах свои и не совпадают с рабочими.
 """
 
+import atexit
 import os
+import shutil
 import tempfile
-from collections.abc import Iterator
 from pathlib import Path
 
-import pytest
+_TMP_DIR = Path(tempfile.mkdtemp(prefix="warehouse-tests-"))
+atexit.register(shutil.rmtree, _TMP_DIR, ignore_errors=True)
 
-TEST_DB = Path(tempfile.gettempdir()) / "warehouse_test.sqlite3"
-# Переменные окружения выставляются ДО импорта приложения: конфигурация читается при импорте.
-os.environ["DATABASE_URL"] = f"sqlite+pysqlite:///{TEST_DB}"
+# Переменные выставляются до импорта приложения: конфигурация читается при импорте.
+# Значения из .env и окружения разработчика намеренно перекрываются.
+os.environ["DATABASE_URL"] = f"sqlite+pysqlite:///{_TMP_DIR / 'app.sqlite3'}"
 os.environ["APP_ENV"] = "test"
-os.environ["AUTH_USERNAME"] = "admin"
-os.environ["AUTH_PASSWORD"] = "warehouse123"
-
-from fastapi.testclient import TestClient  # noqa: E402
-
-from app.db import Base, engine  # noqa: E402
-from app.main import app  # noqa: E402
-
-# Учётные данные, с которыми приложение запускается в тестах.
-AUTH = ("admin", "warehouse123")
-
-
-@pytest.fixture(autouse=True)
-def clean_database() -> Iterator[None]:
-    """Каждый тест начинается с пустой схемы."""
-    Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
-    yield
-    Base.metadata.drop_all(engine)
-
-
-@pytest.fixture
-def client(clean_database: None) -> Iterator[TestClient]:
-    """Клиент с авторизацией — для тестов бизнес-логики."""
-    with TestClient(app) as test_client:
-        test_client.auth = AUTH
-        yield test_client
-
-
-@pytest.fixture
-def anonymous_client(clean_database: None) -> Iterator[TestClient]:
-    """Клиент без авторизации — для тестов контроля доступа."""
-    with TestClient(app) as test_client:
-        yield test_client
-
-
-@pytest.fixture
-def unit_id(client: TestClient) -> int:
-    response = client.post("/api/v1/units", json={"code": "kg", "name": "Килограмм"})
-    assert response.status_code == 201
-    return response.json()["id"]
-
-
-@pytest.fixture
-def supplier_id(client: TestClient) -> int:
-    response = client.post(
-        "/api/v1/suppliers",
-        json={"name": 'ООО "Метизы"', "inn": "7701234567", "email": "sales@metiz.example"},
-    )
-    assert response.status_code == 201
-    return response.json()["id"]
-
-
-@pytest.fixture
-def material_id(client: TestClient, unit_id: int) -> int:
-    response = client.post(
-        "/api/v1/materials",
-        json={"sku": "MAT-001", "name": "Болт М8х40", "unit_id": unit_id, "min_stock": "50"},
-    )
-    assert response.status_code == 201
-    return response.json()["id"]
+os.environ["AUTH_USERNAME"] = "tester"
+os.environ["AUTH_PASSWORD"] = "test-password"

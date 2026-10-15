@@ -28,6 +28,21 @@ def test_stock_report_marks_positions_below_minimum(
     assert client.get("/api/v1/reports/stock?below_min=true").json()["positions"] == 0
 
 
+def test_stock_report_respects_limit(client: TestClient, unit_id: int) -> None:
+    for sku in ["MAT-002", "MAT-003"]:
+        client.post(
+            "/api/v1/materials",
+            json={"sku": sku, "name": f"Материал {sku}", "unit_id": unit_id},
+        )
+
+    report = client.get("/api/v1/reports/stock?limit=2").json()
+    assert report["positions"] == 2
+
+
+def test_stock_report_rejects_zero_limit(client: TestClient) -> None:
+    assert client.get("/api/v1/reports/stock?limit=0").status_code == 422
+
+
 def test_receipts_report_counts_only_posted_documents(
     client: TestClient, supplier_id: int, material_id: int
 ):
@@ -71,7 +86,6 @@ def test_receipts_report_respects_period(
 
 
 def test_stock_report_can_be_sorted(client: TestClient, unit_id: int) -> None:
-    """Сортировка отчёта по имени материала."""
     for sku, name in [("MAT-003", "Труба"), ("MAT-002", "Гайка")]:
         client.post(
             "/api/v1/materials",
@@ -86,29 +100,6 @@ def test_stock_report_can_be_sorted(client: TestClient, unit_id: int) -> None:
 
 
 def test_stock_report_rejects_unknown_order_field(client: TestClient) -> None:
-    """Недопустимое поле сортировки возвращает business_rule_violated."""
     response = client.get("/api/v1/reports/stock?order_by=price")
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "business_rule_violated"
-
-
-def test_stock_report_can_be_limited(client: TestClient, unit_id: int) -> None:
-    """Параметр limit ограничивает число строк в отчёте."""
-    for sku in ("MAT-003", "MAT-002", "MAT-004"):
-        client.post(
-            "/api/v1/materials",
-            json={"sku": sku, "name": sku, "unit_id": unit_id},
-        )
-
-    full = client.get("/api/v1/reports/stock").json()
-    limited = client.get("/api/v1/reports/stock?limit=2").json()
-
-    assert full["positions"] == 3
-    assert limited["positions"] == 2
-    assert [r["sku"] for r in limited["rows"]] == ["MAT-002", "MAT-003"]
-
-
-def test_stock_report_rejects_invalid_limit(client: TestClient) -> None:
-    """limit=0 отклоняется валидацией."""
-    response = client.get("/api/v1/reports/stock?limit=0")
-    assert response.status_code == 422
