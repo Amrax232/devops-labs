@@ -1,6 +1,6 @@
 # Схема базы данных
 
-Версия схемы: миграция `0001_initial_schema`.
+Версия схемы: миграция `0004_write_offs` (история — [`migrations.md`](migrations.md)).
 
 ## ER-диаграмма
 
@@ -9,6 +9,7 @@ erDiagram
     UNITS ||--o{ MATERIALS : "единица измерения"
     SUPPLIERS ||--o{ RECEIPTS : "поставщик"
     RECEIPTS ||--o{ RECEIPT_ITEMS : "строки документа"
+    MATERIALS ||--o{ WRITE_OFFS : "списания"
     MATERIALS ||--o{ RECEIPT_ITEMS : "материал"
 
     UNITS {
@@ -21,6 +22,7 @@ erDiagram
         varchar  name
         varchar  inn UK "10 или 12 цифр"
         varchar  email
+        varchar  phone "0002"
         boolean  is_active
     }
     MATERIALS {
@@ -30,6 +32,7 @@ erDiagram
         int      unit_id FK
         numeric  quantity "текущий остаток, >= 0"
         numeric  min_stock "минимальный запас"
+        varchar  location "0003, по умолчанию MAIN"
     }
     RECEIPTS {
         int       id PK
@@ -46,6 +49,13 @@ erDiagram
         int      material_id FK
         numeric  quantity "> 0"
         numeric  price ">= 0"
+    }
+    WRITE_OFFS {
+        int       id PK
+        int       material_id FK
+        numeric   quantity "> 0"
+        varchar   reason
+        timestamp created_at
     }
 ```
 
@@ -67,6 +77,7 @@ erDiagram
 | `name` | varchar(255) | NOT NULL, индекс `ix_suppliers_name` |
 | `inn` | varchar(12) | NOT NULL, UNIQUE |
 | `email` | varchar(255) | NULL |
+| `phone` | varchar(32) | NULL — добавлено миграцией 0002 |
 | `is_active` | boolean | NOT NULL, default `true` |
 
 ### `materials` — материалы
@@ -79,6 +90,7 @@ erDiagram
 | `unit_id` | integer | NOT NULL, FK → `units.id` |
 | `quantity` | numeric(14,3) | NOT NULL, default 0, CHECK `quantity >= 0` |
 | `min_stock` | numeric(14,3) | NOT NULL, default 0, CHECK `min_stock >= 0` |
+| `location` | varchar(32) | NOT NULL, default `'MAIN'` — добавлено миграцией 0003 |
 
 ### `receipts` — документы поступления
 
@@ -102,6 +114,16 @@ erDiagram
 | `quantity` | numeric(14,3) | NOT NULL, CHECK `quantity > 0` |
 | `price` | numeric(14,2) | NOT NULL, default 0, CHECK `price >= 0` |
 | — | — | UNIQUE (`receipt_id`, `material_id`) |
+
+### `write_offs` — списания (миграция 0004)
+
+| Поле | Тип | Ограничения |
+|---|---|---|
+| `id` | integer | PK |
+| `material_id` | integer | NOT NULL, FK → `materials.id`, индекс `ix_write_offs_material_id` |
+| `quantity` | numeric(14,3) | NOT NULL, CHECK `quantity > 0` |
+| `reason` | varchar(255) | NOT NULL |
+| `created_at` | timestamptz | NOT NULL, default `now()` |
 
 ## Жизненный цикл документа
 
