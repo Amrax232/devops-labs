@@ -5,7 +5,13 @@ from sqlalchemy.orm import Session
 
 from app import services
 from app.db import get_db
-from app.schemas import MaterialCreate, MaterialRead, MaterialUpdate
+from app.schemas import (
+    MaterialCreate,
+    MaterialRead,
+    MaterialUpdate,
+    WriteOffCreate,
+    WriteOffRead,
+)
 
 router = APIRouter(prefix="/api/v1/materials", tags=["materials"])
 
@@ -48,3 +54,25 @@ def update_material(
 )
 def delete_material(material_id: int, db: Session = Depends(get_db)) -> None:
     services.delete_material(db, material_id)
+
+
+@router.post(
+    "/{material_id}/write-offs",
+    response_model=WriteOffRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Списать материал",
+)
+def create_write_off(
+    material_id: int, payload: WriteOffCreate, db: Session = Depends(get_db)
+) -> WriteOffRead:
+    """Уменьшает остаток. Списать больше, чем есть на складе, нельзя."""
+    return services.create_write_off(db, material_id, payload)
+
+
+@router.get(
+    "/{material_id}/write-offs",
+    response_model=list[WriteOffRead],
+    summary="История списаний материала",
+)
+def list_write_offs(material_id: int, db: Session = Depends(get_db)) -> list[WriteOffRead]:
+    return services.list_write_offs(db, material_id)

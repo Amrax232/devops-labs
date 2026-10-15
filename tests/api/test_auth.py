@@ -2,7 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from tests.conftest import AUTH
+from tests.api.conftest import AUTH
 
 
 def test_data_requires_credentials(anonymous_client: TestClient) -> None:

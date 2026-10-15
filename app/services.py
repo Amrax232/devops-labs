@@ -1,7 +1,9 @@
-"""Правила предметной области «Складской учёт».
+"""Сценарии работы с данными «Складского учёта».
 
-Здесь собрана вся содержательная логика: маршруты (routers) только принимают
-запрос и вызывают функции этого модуля.
+Маршруты (routers) только принимают запрос и вызывают функции этого модуля.
+Сами решения «можно / нельзя» и арифметика остатков вынесены в app/domain.py —
+там они проверяются unit-тестами без базы данных. Здесь — загрузка и
+сохранение данных и вызов этих правил.
 
 Основные правила:
 1. Поступление создаётся в статусе `draft` и в этом статусе редактируется.
@@ -10,6 +12,7 @@
 3. Проведённый документ нельзя изменить, дополнить или удалить.
 4. Нельзя удалить справочный объект, на который ссылаются другие записи.
 5. Номер поступления, артикул материала, код единицы и ИНН поставщика уникальны.
+6. Списать можно не больше, чем есть на остатке.
 """
 
 from __future__ import annotations
@@ -20,6 +23,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app import domain
 from app.errors import BusinessRuleError, ConflictError, NotFoundError
 from app.models import (
     Material,
@@ -28,6 +32,7 @@ from app.models import (
     ReceiptStatus,
     Supplier,
     Unit,
+    WriteOff,
     utcnow,
 )
 from app.schemas import (
@@ -42,6 +47,7 @@ from app.schemas import (
     SupplierSummaryRow,
     SupplierUpdate,
     UnitCreate,
+    WriteOffCreate,
 )
 
 
@@ -145,6 +151,7 @@ def create_material(db: Session, data: MaterialCreate) -> Material:
         name=data.name,
         unit_id=data.unit_id,
         min_stock=data.min_stock,
+        location=data.location,
         quantity=Decimal("0"),
     )
     db.add(material)
@@ -183,16 +190,49 @@ def update_material(db: Session, material_id: int, data: MaterialUpdate) -> Mate
 
 def delete_material(db: Session, material_id: int) -> None:
     material = get_material(db, material_id)
-    used = db.scalar(
+    in_receipts = db.scalar(
         select(func.count(ReceiptItem.id)).where(ReceiptItem.material_id == material_id)
     )
-    if used:
+    in_write_offs = db.scalar(
+        select(func.count(WriteOff.id)).where(WriteOff.material_id == material_id)
+    )
+    if in_receipts or in_write_offs:
         raise ConflictError(
-            "Материал участвует в поступлениях и не может быть удалён",
-            {"receipt_items": used},
+            "По материалу есть движение (поступления или списания), удалить его нельзя",
+            {"receipt_items": in_receipts, "write_offs": in_write_offs},
         )
     db.delete(material)
     db.commit()
+
+
+# -------------------------------------------------------------------------- списания
+def create_write_off(db: Session, material_id: int, data: WriteOffCreate) -> WriteOff:
+    """Списать материал: уменьшить остаток и сохранить запись о списании.
+
+    Строка материала блокируется (SELECT ... FOR UPDATE), чтобы два одновременных
+    списания не прочитали один и тот же остаток. Последний рубеж — ограничение
+    CHECK (quantity >= 0) в базе данных.
+    """
+    material = db.scalar(select(Material).where(Material.id == material_id).with_for_update())
+    if material is None:
+        raise NotFoundError(f"Материал с id={material_id} не найден", {"id": material_id})
+
+    material.quantity = domain.apply_write_off(material.quantity, data.quantity)
+    write_off = WriteOff(material_id=material_id, quantity=data.quantity, reason=data.reason)
+    db.add(write_off)
+    db.commit()
+    db.refresh(write_off)
+    return write_off
+
+
+def list_write_offs(db: Session, material_id: int) -> list[WriteOff]:
+    get_material(db, material_id)
+    stmt = (
+        select(WriteOff)
+        .where(WriteOff.material_id == material_id)
+        .order_by(WriteOff.created_at.desc(), WriteOff.id.desc())
+    )
+    return list(db.scalars(stmt))
 
 
 # ------------------------------------------------------------------------ поступления
@@ -206,11 +246,7 @@ def _load_receipt(db: Session, receipt_id: int) -> Receipt:
 
 
 def _ensure_draft(receipt: Receipt) -> None:
-    if receipt.status is not ReceiptStatus.DRAFT:
-        raise BusinessRuleError(
-            "Проведённое поступление изменить нельзя",
-            {"receipt_id": receipt.id, "status": receipt.status.value},
-        )
+    domain.ensure_draft(receipt.status, receipt.id)
 
 
 def create_receipt(db: Session, data: ReceiptCreate) -> Receipt:
@@ -222,15 +258,9 @@ def create_receipt(db: Session, data: ReceiptCreate) -> Receipt:
             {"supplier_id": supplier.id},
         )
 
-    seen: set[int] = set()
+    domain.ensure_unique_materials(item.material_id for item in data.items)
     items: list[ReceiptItem] = []
     for item in data.items:
-        if item.material_id in seen:
-            raise BusinessRuleError(
-                "Материал встречается в документе дважды — объедините строки",
-                {"material_id": item.material_id},
-            )
-        seen.add(item.material_id)
         _get_or_404(db, Material, item.material_id, "Материал")
         items.append(
             ReceiptItem(
@@ -313,16 +343,11 @@ def delete_receipt_item(db: Session, receipt_id: int, item_id: int) -> Receipt:
 def post_receipt(db: Session, receipt_id: int) -> Receipt:
     """Провести поступление: увеличить остатки материалов и закрыть документ."""
     receipt = _load_receipt(db, receipt_id)
-    _ensure_draft(receipt)
-    if not receipt.items:
-        raise BusinessRuleError(
-            "Нельзя провести поступление без позиций",
-            {"receipt_id": receipt_id},
-        )
+    domain.ensure_can_post(receipt.status, len(receipt.items), receipt_id)
 
     for item in receipt.items:
         material = _get_or_404(db, Material, item.material_id, "Материал")
-        material.quantity = Decimal(str(material.quantity)) + Decimal(str(item.quantity))
+        material.quantity = domain.apply_receipt(material.quantity, item.quantity)
 
     receipt.status = ReceiptStatus.POSTED
     receipt.posted_at = utcnow()
@@ -375,7 +400,7 @@ def stock_report(
             unit_code=unit_code,
             quantity=material.quantity,
             min_stock=material.min_stock,
-            below_min=Decimal(str(material.quantity)) < Decimal(str(material.min_stock)),
+            below_min=domain.is_below_min(material.quantity, material.min_stock),
         )
         for material, unit_code in db.execute(stmt).all()
     ]

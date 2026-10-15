@@ -16,7 +16,9 @@ class Settings(BaseSettings):
 
     app_name: str = "warehouse-inventory"
     app_env: str = "local"
-    app_host: str = "0.0.0.0"
+    # По умолчанию слушаем только локальный интерфейс; на сервере адрес задаётся
+    # явно через APP_HOST (см. deploy/app/warehouse.env.example).
+    app_host: str = "127.0.0.1"
     app_port: int = 8000
     log_level: str = "INFO"
 
@@ -26,9 +28,10 @@ class Settings(BaseSettings):
     # Показывать ли SQL-запросы в логах (удобно при отладке).
     sql_echo: bool = False
 
-    # Учётная запись для доступа к API (HTTP Basic).
+    # Учётная запись для доступа к API (HTTP Basic). Пароль по умолчанию
+    # намеренно не задан: без AUTH_PASSWORD в окружении приложение не запустится.
     auth_username: str = "admin"
-    auth_password: str = "admin"
+    auth_password: str
 
 
 @lru_cache

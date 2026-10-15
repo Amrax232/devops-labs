@@ -13,6 +13,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.domain import RuleViolation
+
 
 class AppError(Exception):
     """Базовая прикладная ошибка с понятным кодом и HTTP-статусом."""
@@ -71,6 +73,13 @@ def register_error_handlers(app: FastAPI) -> None:
             status_code=exc.status_code,
             content=error_body(exc.code, exc.message, exc.details),
             headers=exc.headers,
+        )
+
+    @app.exception_handler(RuleViolation)
+    async def _rule_violation(_: Request, exc: RuleViolation) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content=error_body(BusinessRuleError.code, exc.message, exc.details),
         )
 
     @app.exception_handler(RequestValidationError)

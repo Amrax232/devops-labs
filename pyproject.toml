@@ -1,27 +1,58 @@
 [project]
 name = "warehouse-inventory"
-version = "0.1.0"
+version = "0.4.0"
 description = "Складской учёт — учебный проект по курсу «Методология и практики DevOps»"
 requires-python = ">=3.11"
 
+# --------------------------------------------------------------------- ruff
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-exclude = [".venv", "migrations/versions"]
+exclude = [".venv"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 ignore = ["B008"]  # Depends() в аргументах по умолчанию — стандартный приём FastAPI
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["E501"]
-"migrations/env.py" = ["E402"]
-"tests/conftest.py" = ["E402"]
+"tests/*" = ["E501"]  # длинные строки с тестовыми данными в parametrize
 
+# ------------------------------------------------------------------- pytest
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+# --strict-markers: опечатка в маркере — ошибка, а не молча пропущенный тест
+# --strict-config:  опечатка в этой секции — ошибка
+# -ra:              в итоге перечисляются все не прошедшие тесты с причиной
+addopts = "-q --strict-markers --strict-config -ra"
 filterwarnings = [
-    "ignore::DeprecationWarning",
+    # SQLite хранит NUMERIC как число с плавающей точкой, и SQLAlchemy предупреждает
+    # об этом на каждом запросе. Для тестов API на SQLite это ожидаемо; точность
+    # хранения проверяется интеграционными тестами на PostgreSQL.
     "ignore:.*does \\*not\\* support Decimal objects natively.*:UserWarning",
 ]
+
+# ----------------------------------------------------------------- покрытие
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.coverage.report]
+# Нижняя граница зафиксирована в scripts/check_policy.py — снизить её молча нельзя.
+fail_under = 80
+show_missing = true
+
+[tool.coverage.xml]
+output = "reports/coverage.xml"
+
+[tool.coverage.html]
+directory = "reports/coverage-html"
+
+# ------------------------------------------------------------------- bandit
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]
+skips = []
+
+# --------------------------------------------------- пороги проверок проекта
+[tool.warehouse.quality]
+# Доля мутантов в app/domain.py, которые обязаны «убить» unit-тесты, %.
+mutation_min_score = 80

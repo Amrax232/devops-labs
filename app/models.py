@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import enum
-from datetime import UTC, date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -31,7 +31,7 @@ class ReceiptStatus(str, enum.Enum):
 
 
 def utcnow() -> datetime:
-    return datetime.now(UTC)
+    return datetime.now(timezone.utc)
 
 
 class Unit(Base):
@@ -56,6 +56,7 @@ class Supplier(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     inn: Mapped[str] = mapped_column(String(12), unique=True, nullable=False)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
 
     receipts: Mapped[list[Receipt]] = relationship(back_populates="supplier")
@@ -81,9 +82,15 @@ class Material(Base):
     min_stock: Mapped[Decimal] = mapped_column(
         Numeric(14, 3), nullable=False, default=Decimal("0")
     )
+    # Место хранения (ячейка склада). Добавлено миграцией 0003 со значением
+    # по умолчанию, чтобы колонку NOT NULL можно было добавить в заполненную таблицу.
+    location: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="MAIN", server_default="MAIN"
+    )
 
     unit: Mapped[Unit] = relationship(back_populates="materials")
     receipt_items: Mapped[list[ReceiptItem]] = relationship(back_populates="material")
+    write_offs: Mapped[list[WriteOff]] = relationship(back_populates="material")
 
 
 class Receipt(Base):
@@ -135,3 +142,23 @@ class ReceiptItem(Base):
 
     receipt: Mapped[Receipt] = relationship(back_populates="items")
     material: Mapped[Material] = relationship(back_populates="receipt_items")
+
+
+class WriteOff(Base):
+    """Списание материала со склада (брак, порча, использование в производстве)."""
+
+    __tablename__ = "write_offs"
+    __table_args__ = (
+        CheckConstraint("quantity > 0", name="ck_write_offs_quantity_positive"),
+        Index("ix_write_offs_material_id", "material_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    material_id: Mapped[int] = mapped_column(ForeignKey("materials.id"), nullable=False)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False)
+    reason: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    material: Mapped[Material] = relationship(back_populates="write_offs")

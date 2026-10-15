@@ -2,6 +2,8 @@
 
 from fastapi.testclient import TestClient
 
+from app import __version__
+
 
 def test_healthz(client: TestClient) -> None:
     response = client.get("/healthz")
@@ -18,4 +20,4 @@ def test_readyz_reports_database(client: TestClient) -> None:
 def test_root_returns_service_info(client: TestClient) -> None:
     response = client.get("/")
     assert response.status_code == 200
-    assert response.json()["version"] == "0.2.0"
+    assert response.json()["version"] == __version__

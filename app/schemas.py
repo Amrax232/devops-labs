@@ -8,10 +8,17 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
+from app import domain
 from app.models import ReceiptStatus
 
-INN_RE = re.compile(r"^\d{10}$|^\d{12}$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[a-zA-Z]{2,}$")
+# Телефон: цифры, пробелы, «+», «-» и скобки; от 5 до 32 символов (размер колонки).
+PHONE_PATTERN = r"^[+0-9 ()\-]{5,32}$"
+
+# Точность хранения в базе: NUMERIC(14,3) для количества и NUMERIC(14,2) для цены.
+# Значение с большим числом знаков отклоняется, а не округляется молча.
+QUANTITY = {"max_digits": 14, "decimal_places": 3}
+MONEY = {"max_digits": 14, "decimal_places": 2}
 
 
 # ---------------------------------------------------------------- единицы измерения
@@ -33,12 +40,13 @@ class SupplierCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255, examples=['ООО "Метизы"'])
     inn: str = Field(examples=["7701234567"])
     email: str | None = Field(default=None, examples=["sales@metiz.example"])
+    phone: str | None = Field(default=None, pattern=PHONE_PATTERN, examples=["+7 495 123-45-67"])
     is_active: bool = True
 
     @field_validator("inn")
     @classmethod
     def validate_inn(cls, value: str) -> str:
-        if not INN_RE.match(value):
+        if not domain.is_valid_inn(value):
             raise ValueError("ИНН должен содержать 10 или 12 цифр")
         return value
 
@@ -53,6 +61,7 @@ class SupplierCreate(BaseModel):
 class SupplierUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     email: str | None = None
+    phone: str | None = Field(default=None, pattern=PHONE_PATTERN)
     is_active: bool | None = None
 
     @field_validator("email")
@@ -70,6 +79,7 @@ class SupplierRead(BaseModel):
     name: str
     inn: str
     email: str | None
+    phone: str | None = None
     is_active: bool
 
 
@@ -78,13 +88,15 @@ class MaterialCreate(BaseModel):
     sku: str = Field(min_length=1, max_length=32, examples=["MAT-001"])
     name: str = Field(min_length=1, max_length=255, examples=["Болт М8х40"])
     unit_id: int
-    min_stock: Decimal = Field(default=Decimal("0"), ge=0)
+    min_stock: Decimal = Field(default=Decimal("0"), ge=0, **QUANTITY)
+    location: str = Field(default="MAIN", min_length=1, max_length=32, examples=["A-01-03"])
 
 
 class MaterialUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     unit_id: int | None = None
-    min_stock: Decimal | None = Field(default=None, ge=0)
+    min_stock: Decimal | None = Field(default=None, ge=0, **QUANTITY)
+    location: str | None = Field(default=None, min_length=1, max_length=32)
 
 
 class MaterialRead(BaseModel):
@@ -95,14 +107,31 @@ class MaterialRead(BaseModel):
     name: str
     quantity: Decimal
     min_stock: Decimal
+    location: str
     unit: UnitRead
+
+
+# ------------------------------------------------------------------------- списания
+class WriteOffCreate(BaseModel):
+    quantity: Decimal = Field(gt=0, examples=["2.500"], **QUANTITY)
+    reason: str = Field(min_length=3, max_length=255, examples=["Брак при приёмке"])
+
+
+class WriteOffRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    material_id: int
+    quantity: Decimal
+    reason: str
+    created_at: datetime | None = None
 
 
 # ------------------------------------------------------------------------ поступления
 class ReceiptItemCreate(BaseModel):
     material_id: int
-    quantity: Decimal = Field(gt=0, examples=["10.000"])
-    price: Decimal = Field(default=Decimal("0"), ge=0, examples=["25.50"])
+    quantity: Decimal = Field(gt=0, examples=["10.000"], **QUANTITY)
+    price: Decimal = Field(default=Decimal("0"), ge=0, examples=["25.50"], **MONEY)
 
 
 class ReceiptItemRead(BaseModel):
@@ -136,7 +165,7 @@ class ReceiptRead(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def total_amount(self) -> Decimal:
-        return sum((i.quantity * i.price for i in self.items), Decimal("0"))
+        return domain.receipt_total((i.quantity, i.price) for i in self.items)
 
 
 # ----------------------------------------------------------------------------- отчёты

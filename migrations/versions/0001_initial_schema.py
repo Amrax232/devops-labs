@@ -45,8 +45,10 @@ def upgrade() -> None:
     )
     op.create_index("ix_materials_name", "materials", ["name"])
 
+    # Тип receipt_status создаётся автоматически вместе с таблицей receipts
+    # (op.create_table выполняет CREATE TYPE сам). Отдельный вызов create()
+    # дублировал бы CREATE TYPE на чистой базе PostgreSQL.
     receipt_status = sa.Enum("draft", "posted", name="receipt_status")
-    receipt_status.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "receipts",
