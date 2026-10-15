@@ -1,19 +1,27 @@
-"""Окружение Alembic: URL базы берётся из переменных окружения приложения."""
+"""Окружение Alembic.
+
+Адрес базы данных берётся так:
+1) если его явно передали в конфигурацию (так делают интеграционные тесты) —
+   используется он;
+2) иначе — DATABASE_URL из переменных окружения приложения (make migrate).
+"""
 
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from app import models  # noqa: F401  - импорт нужен, чтобы модели попали в metadata
+from app import models  # noqa: F401 - импорт регистрирует модели в Base.metadata
 from app.config import get_settings
 from app.db import Base
 
 config = context.config
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+if not config.get_main_option("sqlalchemy.url"):
+    config.set_main_option("sqlalchemy.url", get_settings().database_url)
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers=False: не глушить логгеры приложения и pytest.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 
@@ -24,6 +32,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        render_as_batch=True,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -36,7 +45,12 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            # batch-режим нужен SQLite: он не умеет большинство ALTER TABLE.
+            render_as_batch=True,
+        )
         with context.begin_transaction():
             context.run_migrations()
 
