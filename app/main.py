@@ -8,7 +8,7 @@ from app import __version__
 from app.config import get_settings
 from app.errors import register_error_handlers
 from app.routers import health, materials, receipts, reports, suppliers, units
-from app.security import require_auth
+from app.security import require_auth_for_changes
 
 settings = get_settings()
 logging.basicConfig(
@@ -21,7 +21,8 @@ app = FastAPI(
     description=(
         "Учебный проект по курсу «Методология и практики DevOps». "
         "Учёт материалов, единиц измерения, поставщиков и поступлений на склад. "
-        "Доступ к данным — по логину и паролю (кнопка Authorize)."
+        "Просмотр данных открыт всем; добавление, изменение и удаление — только после "
+        "входа по логину и паролю (кнопка Authorize)."
     ),
     version=__version__,
     openapi_url="/openapi.json",
@@ -33,8 +34,8 @@ register_error_handlers(app)
 # health-check и корневой адрес открыты: их опрашивает мониторинг.
 app.include_router(health.router)
 
-# Все данные доступны только после ввода логина и пароля.
-protected = [Depends(require_auth)]
+# Разграничение прав: читать может любой, добавлять и изменять — только после входа.
+protected = [Depends(require_auth_for_changes)]
 app.include_router(units.router, dependencies=protected)
 app.include_router(suppliers.router, dependencies=protected)
 app.include_router(materials.router, dependencies=protected)
