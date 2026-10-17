@@ -26,7 +26,7 @@
 | Ф12 | Сортировка и ограничение отчёта | A | `test_stock_report_can_be_sorted`, `test_stock_report_respects_limit`, `test_stock_report_limit_boundaries` |
 | Ф13 | Списание материала | U, A, I | `test_write_off_decreases_stock` (U и A), `test_whole_stock_can_be_written_off`, `test_concurrent_write_offs_do_not_overdraw_stock` |
 | Ф14 | История списаний | A | `test_write_off_history_is_newest_first` |
-| Ф15 | Доступ по логину и паролю | A | `test_data_requires_credentials`, `test_wrong_password_is_rejected`, `test_write_off_requires_credentials` |
+| Ф15 | Разграничение прав доступа | A | `test_anonymous_user_can_read`, `test_no_read_route_requires_credentials`, `test_correct_credentials_allow_changes` |
 
 ## Ограничения и правила
 
@@ -46,7 +46,7 @@
 | П12 | Списать не больше остатка | U, A, I | `test_write_off_over_stock_is_rejected`, `test_cannot_write_off_more_than_stock`, `test_concurrent_write_offs_do_not_overdraw_stock` |
 | П13 | Точность количества и цены | A | `test_receipt_quantity_boundaries`, `test_material_min_stock_boundaries` |
 | П14 | Материал с движением не удаляется | A | `test_material_with_receipts_cannot_be_deleted`, `test_material_with_write_offs_cannot_be_deleted` |
-| П15 | Данные закрыты логином и паролем | A | `test_write_operations_are_protected`, `test_health_stays_public` |
+| П15 | Изменение данных — только после входа | A | `test_every_write_route_requires_credentials` (все 14 маршрутов изменения), `test_anonymous_attempt_does_not_change_data`, `test_wrong_password_is_rejected_even_for_reading` |
 
 ## Итог
 

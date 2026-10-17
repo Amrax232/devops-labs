@@ -65,7 +65,9 @@ def test_receipts_report_counts_only_posted_documents(
     assert Decimal(str(report["total_amount"])) == Decimal("500")
 
 
-def test_receipts_report_respects_period(client: TestClient, supplier_id: int, material_id: int):
+def test_receipts_report_respects_period(
+    client: TestClient, supplier_id: int, material_id: int
+):
     receipt_id = client.post(
         "/api/v1/receipts",
         json={
