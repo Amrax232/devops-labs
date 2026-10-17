@@ -159,8 +159,16 @@ make run             # приложение на http://localhost:8000
 
 ## Доступ к API
 
-Все маршруты `/api/v1/**` закрыты логином и паролем (HTTP Basic). Открытыми
-остались `/`, `/healthz` и `/readyz` — их опрашивает мониторинг.
+Права разграничены по типу операции:
+
+| Кто | Чтение (GET) | Добавление, изменение, удаление (POST, PATCH, DELETE) |
+|---|---|---|
+| Пользователь без входа | разрешено | **запрещено** — ответ `401 unauthorized` |
+| Пользователь, вошедший по логину и паролю | разрешено | разрешено |
+
+Служебные адреса `/`, `/healthz`, `/readyz` открыты всегда. Если логин и пароль
+переданы, они проверяются при любом запросе: с неверным паролем не получится
+даже читать.
 
 Логин и пароль задаются переменными окружения и в репозиторий не попадают:
 
@@ -169,18 +177,18 @@ AUTH_USERNAME=admin
 AUTH_PASSWORD=warehouse123
 ```
 
-Как пользоваться:
+Как войти:
 
-- **браузер** — при открытии `http://localhost:8000/api/v1/suppliers` появится
-  стандартное окно ввода логина и пароля;
 - **Swagger** (`/docs`) — кнопка **Authorize** справа сверху;
 - **curl** — флаг `-u`:
 
 ```bash
-curl -u admin:warehouse123 localhost:8000/api/v1/materials
+curl localhost:8000/api/v1/materials                         # читать можно без входа
+curl -X POST localhost:8000/api/v1/units \
+  -H 'Content-Type: application/json' -d '{"code":"kg","name":"Кг"}'   # 401
+curl -u admin:warehouse123 -X POST localhost:8000/api/v1/units \
+  -H 'Content-Type: application/json' -d '{"code":"kg","name":"Кг"}'   # 201
 ```
-
-Без логина API отвечает `401` с кодом `unauthorized`.
 
 ---
 

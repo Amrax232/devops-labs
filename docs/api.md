@@ -4,28 +4,36 @@
 Формат обмена: JSON, кодировка UTF-8.
 Интерактивная документация (OpenAPI): `/docs`, схема — `/openapi.json`.
 
-## Аутентификация
+## Аутентификация и права доступа
 
-Маршруты `/api/v1/**` защищены HTTP Basic: логин и пароль берутся из переменных
-`AUTH_USERNAME` и `AUTH_PASSWORD`. Открыты без пароля только `/`, `/healthz`
-и `/readyz`.
+| Операция | Без входа | После входа (HTTP Basic) |
+|---|---|---|
+| `GET` — просмотр справочников, документов, отчётов | разрешено | разрешено |
+| `POST`, `PATCH`, `DELETE` — добавление, изменение, удаление | `401 unauthorized` | разрешено |
+
+Логин и пароль берутся из переменных `AUTH_USERNAME` и `AUTH_PASSWORD`.
+Служебные `/`, `/healthz`, `/readyz` открыты всегда. Переданные логин и пароль
+проверяются при любом запросе: неверный пароль даёт 401 даже при чтении.
 
 ```bash
-# в curl — флаг -u
-curl -u admin:warehouse123 localhost:8000/api/v1/materials
+# чтение — без входа
+curl localhost:8000/api/v1/materials
 
-# без логина
-curl -i localhost:8000/api/v1/materials
+# изменение без входа
+curl -i -X POST localhost:8000/api/v1/units \
+  -H 'Content-Type: application/json' -d '{"code":"kg","name":"Килограмм"}'
 # HTTP/1.1 401 Unauthorized
 # www-authenticate: Basic realm="warehouse"
 # {"error":{"code":"unauthorized","message":"Требуется вход: укажите логин и пароль","details":{}}}
+
+# изменение после входа — флаг -u
+curl -u admin:warehouse123 -X POST localhost:8000/api/v1/units \
+  -H 'Content-Type: application/json' -d '{"code":"kg","name":"Килограмм"}'
 ```
 
-В браузере при первом обращении появится окно ввода логина и пароля, в
-Swagger (`/docs`) — кнопка **Authorize**.
-
-Во всех примерах ниже флаг `-u admin:warehouse123` опущен для краткости —
-в реальных запросах он нужен.
+В Swagger (`/docs`) для входа служит кнопка **Authorize**. В примерах ниже
+флаг `-u admin:warehouse123` у запросов POST, PATCH и DELETE опущен для
+краткости — в реальных запросах он нужен.
 
 ---
 
