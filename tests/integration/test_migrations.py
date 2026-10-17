@@ -50,7 +50,9 @@ def test_clean_database_is_created_from_scratch(engine: Engine, alembic_cfg: Con
     assert _current_revision(engine) == ScriptDirectory.from_config(alembic_cfg).get_current_head()
 
 
-def test_database_with_data_is_upgraded_without_loss(engine: Engine, alembic_cfg: Config) -> None:
+def test_database_with_data_is_upgraded_without_loss(
+    engine: Engine, alembic_cfg: Config
+) -> None:
     # 1. Схема в состоянии «до» — версия 0002, где ещё нет места хранения и списаний.
     command.upgrade(alembic_cfg, "0002")
     with engine.begin() as connection:
