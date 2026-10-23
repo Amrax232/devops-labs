@@ -48,6 +48,18 @@
 | П14 | Материал с движением не удаляется | A | `test_material_with_receipts_cannot_be_deleted`, `test_material_with_write_offs_cannot_be_deleted` |
 | П15 | Изменение данных — только после входа | A | `test_every_write_route_requires_credentials` (все 14 маршрутов изменения), `test_anonymous_attempt_does_not_change_data`, `test_wrong_password_is_rejected_even_for_reading` |
 
+## Среда выполнения (раздел 9а ТЗ)
+
+Требования к контейнерной среде проверяются двумя способами. Поведение
+приложения покрывают API-тесты, работу контейнеров — `make container-check`.
+
+| Требование | Тесты | Шаг `make container-check` |
+|---|---|---|
+| Ответ сообщает экземпляр | `test_healthz_reports_instance`, `test_every_response_names_instance` (в том числе ответы 401 и 404) | 8 — балансировка |
+| Штатная остановка, соединения с БД закрываются | `test_shutdown_closes_database_connections` | 10 — `docker stop app2` |
+| Отказ экземпляра не прерывает работу | — | 9 — аварийная остановка app1 |
+| Данные сохраняются при пересоздании и обновлении | — | 11 |
+
 ## Итог
 
 | | Всего пунктов | Покрыто тестами | Доля |

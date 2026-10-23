@@ -3,6 +3,91 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версии — семантические.
 
+## [0.7.0] — 2026-10-19
+
+Результат лабораторной работы №5: непрерывная интеграция на GitHub Actions.
+
+### Добавлено
+
+- Pipeline `.github/workflows/ci.yml`: запуск при `push`, merge request в
+  `main` и изменении `main`. Этапы:
+  1. стиль и политика;
+  2. тесты;
+  3. миграции;
+  4. резервное копирование;
+  5. безопасность;
+  6. контейнерная проверка и анализ образа;
+  7. публикация.
+
+  Единая обязательная проверка — `ci-gate`.
+- Публикация образа в `ghcr.io` с тегами по commit SHA. Публикуется только из
+  `main`, только после успеха всех этапов и только тот образ, что прошёл
+  проверки.
+- `make secrets-scan` (gitleaks по всей истории), `make deps-audit` (pip-audit
+  по `requirements.lock`), `make image-scan` (trivy). Две первые цели входят в
+  `make verify`.
+- `make migrations-check`: миграции с нуля, `alembic check`, линейность, откат
+  и повторное применение.
+- `make backup-check`, `make ci` (весь pipeline локально), `make publish`,
+  `make critical-changes`.
+- `security/vulnerability-exceptions.toml` — исключения для уязвимостей с
+  обоснованием и сроком пересмотра (общие для pip-audit и trivy).
+- `.github/CODEOWNERS`, `scripts/setup_github.sh` (секреты, окружение
+  `registry`, защита `main`), Dependabot.
+- Отчёт «Критические файлы» в merge request: изменённые критические файлы и
+  число тестов «было/стало».
+- `scripts/ci_demo.sh` — сценарии с намеренными дефектами для демонстрации.
+- `make policy` дополнительно проверяет:
+  - минимум тестовых функций;
+  - состав pipeline: нет `continue-on-error` и `|| true`, публикация зависит
+    от всех этапов;
+  - владельцев критических файлов;
+  - исключения уязвимостей.
+- Метки образа `org.opencontainers.image.revision` и `.source`.
+- `docs/ci.md`, `docs/lab5-checklist.md`.
+
+## [0.6.0] — 2026-10-19
+
+Результат лабораторной работы №4: контейнеризация, балансировка и проверка
+контейнерной среды.
+
+### Добавлено
+
+- `Dockerfile`: двухэтапная сборка, закреплённый базовый образ и
+  `requirements.lock`, запуск от пользователя uid 10001, `HEALTHCHECK`, штатная
+  остановка по `SIGTERM`. `.dockerignore` — белый список.
+- `docker-compose.yml`: `db` → `migrate` → `app1`, `app2` → `nginx`.
+  - Внутренние сети, наружу открыт только Nginx.
+  - Именованный том БД.
+  - Ограничения CPU, памяти и числа процессов.
+  - Корневая ФС только на чтение.
+- `docker-compose.dev.yml` — порт БД на 127.0.0.1 для разработки из `.venv`.
+- Nginx — балансировщик:
+  - round-robin;
+  - исключение отказавшего экземпляра и повтор запроса на другом;
+  - ограничение частоты (429);
+  - заголовок `X-Upstream`.
+- Заголовок `X-Instance-Id` в каждом ответе, поле `instance` в `/healthz`
+  (настройка `INSTANCE_ID`).
+- При остановке приложения закрывается пул соединений с БД.
+- `make container-check` — полная проверка контейнерной среды в 14 шагов.
+- `make container-lint` — статические запреты (`latest`, root, секреты,
+  отключённый healthcheck, лишние порты), входит в `make verify`.
+- `make restore-new-volume` — восстановление копии в новый пустой том со сверкой.
+- Цели `build`, `ps`, `logs`, `dev-db`, `container-migrate`, `container-seed`.
+- `docs/containers.md`, `docs/lab4-checklist.md`.
+
+### Изменено
+
+- `make up` поднимает всё окружение (раньше — только PostgreSQL). Для
+  разработки из `.venv` используется `make dev-db`.
+- Порт PostgreSQL больше не публикуется в основном окружении.
+- Healthcheck БД проверяет готовность по TCP: при первом запуске на пустом
+  томе база не считается готовой во время работы initdb.
+- `make migrations-demo` выполняет alembic в контейнере `migrate`.
+- Шаблон merge request: обязательный пункт `make container-check` для
+  изменений контейнерной среды (контролирует `make policy`).
+
 ## [0.5.0] — 2026-10-17
 
 ### Изменено
