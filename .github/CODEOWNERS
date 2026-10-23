@@ -1,0 +1,40 @@
+# Владельцы критических файлов приёмки (docs/ci.md).
+#
+# Изменение любого файла ниже нельзя влить в main без одобрения владельца:
+# защита ветки main включает «Require review from Code Owners» (scripts/setup_github.sh).
+# Автор merge request сам себя одобрить не может — нужен второй участник команды.
+#
+# Логины заполняет scripts/setup_github.sh; пока остаются заглушки CHANGE_ME,
+# make policy не проходит.
+
+# Pipeline, шаблоны, сами правила владения
+/.github/                     @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+
+# Команды проверки и настройки анализаторов
+/Makefile                     @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/pyproject.toml               @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/.gitleaks.toml               @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/security/                    @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/scripts/                     @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+
+# Тесты
+/tests/                       @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+
+# Зависимости
+/requirements.txt             @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/requirements-dev.txt         @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/requirements.lock            @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+
+# Контейнерная среда
+/Dockerfile                   @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/.dockerignore                @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/docker-compose*.yml          @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/nginx/                       @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+
+# Схема БД и настройки безопасности приложения
+/migrations/                  @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/alembic.ini                  @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/app/config.py                @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/app/security.py              @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/.env.example                 @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/.gitignore                   @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3

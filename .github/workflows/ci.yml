@@ -1,0 +1,257 @@
+# Непрерывная интеграция «Складской учёт» (ЛР5).
+#
+# CI — независимый и обязательный барьер перед сборкой и публикацией образа:
+#   1. стиль и политика ─┬─ 2. тесты ─────────┐
+#                        ├─ 3. миграции ──────┤
+#                        ├─ 4. резервные копии┼─ 6. контейнеры ─ 7. публикация (только main)
+#                        └─ 5. безопасность ──┘
+#   ci-gate — единый итог для защиты ветки main (обязательная проверка).
+#
+# Каждый этап вызывает те же make-цели, что разработчик запускает локально
+# (make verify, make ci): локальная и серверная проверки совпадают по
+# определению. Состав этапов контролирует make policy (scripts/check_policy.py):
+# убрать этап, разрешить ему падать (continue-on-error) или снять зависимость
+# публикации от проверки нельзя незаметно.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]          # любая отправка изменений, в том числе в main
+  pull_request:
+    branches: [main]          # создание и обновление merge request в main
+  workflow_dispatch: {}
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+# По умолчанию — только чтение; запись в реестр получает один этап публикации.
+permissions:
+  contents: read
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  VCS_REF: ${{ github.sha }}
+  SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+
+jobs:
+  # ------------------------------------------------------------------ 1
+  lint:
+    name: "1. Стиль и политика качества"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/prepare
+        with:
+          auth-password: ${{ secrets.CI_AUTH_PASSWORD }}
+          postgres-password: ${{ secrets.CI_POSTGRES_PASSWORD }}
+      - name: make policy — запрет пропуска тестов и ослабления проверок
+        run: make policy
+      - name: make lint — формат и статический анализ (ruff)
+        run: make lint
+      - name: make container-lint — запреты для образа и compose
+        run: make container-lint
+
+  # ------------------------------------------------------------------ 2
+  test:
+    name: "2. Тесты"
+    needs: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/prepare
+        with:
+          auth-password: ${{ secrets.CI_AUTH_PASSWORD }}
+          postgres-password: ${{ secrets.CI_POSTGRES_PASSWORD }}
+      - name: make test-db — отдельная тестовая база warehouse_test
+        run: make test-db
+      - name: make coverage — unit, API и интеграционные тесты, порог покрытия
+        run: make coverage
+      - name: make mutation — мутационное тестирование правил
+        run: make mutation
+      - name: Отчёты тестов
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-tests
+          path: reports/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ------------------------------------------------------------------ 3
+  migrations:
+    name: "3. Миграции"
+    needs: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/prepare
+        with:
+          auth-password: ${{ secrets.CI_AUTH_PASSWORD }}
+          postgres-password: ${{ secrets.CI_POSTGRES_PASSWORD }}
+      - name: make dev-db — PostgreSQL для проверки
+        run: make dev-db
+      - name: make migrations-check — с нуля, alembic check, откат и повтор
+        run: make migrations-check
+
+  # ------------------------------------------------------------------ 4
+  backup:
+    name: "4. Резервное копирование"
+    needs: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/prepare
+        with:
+          auth-password: ${{ secrets.CI_AUTH_PASSWORD }}
+          postgres-password: ${{ secrets.CI_POSTGRES_PASSWORD }}
+      - name: make backup-check — копия → повреждение → восстановление → сверка
+        run: make backup-check
+
+  # ------------------------------------------------------------------ 5
+  security:
+    name: "5. Безопасность"
+    needs: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # секреты ищутся во всей истории, а не в последнем коммите
+      - uses: ./.github/actions/prepare
+        with:
+          auth-password: ${{ secrets.CI_AUTH_PASSWORD }}
+          postgres-password: ${{ secrets.CI_POSTGRES_PASSWORD }}
+      - name: make secrets — .env, ключи и дампы не под контролем версий
+        run: make secrets
+      - name: make secrets-scan — поиск секретов в истории git (gitleaks)
+        run: make secrets-scan
+      - name: make sast — анализ безопасности кода (bandit)
+        run: make sast
+      - name: make deps-audit — уязвимости зависимостей (pip-audit)
+        run: make deps-audit
+      - name: Отчёты анализаторов
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-security
+          path: reports/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ------------------------------------------------------------------ 6
+  container:
+    name: "6. Контейнерная проверка и анализ образа"
+    needs: [test, migrations, backup, security]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/prepare
+        with:
+          auth-password: ${{ secrets.CI_AUTH_PASSWORD }}
+          postgres-password: ${{ secrets.CI_POSTGRES_PASSWORD }}
+      - name: Тег образа — версия и commit SHA
+        id: version
+        run: echo "version=$APP_VERSION" >> "$GITHUB_OUTPUT"
+      - name: make container-check — сборка, запуск и 14 проверок окружения
+        run: make container-check
+      - name: Кэш базы уязвимостей trivy
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: trivy-db-${{ runner.os }}-
+      - name: make image-scan — анализ образа (trivy)
+        run: make image-scan
+      - name: Проверенный образ — для этапа публикации
+        uses: actions/upload-artifact@v4
+        with:
+          name: image
+          path: dist/image.tar
+          retention-days: 3
+      - name: Отчёты контейнерной проверки
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-container
+          path: reports/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ------------------------------------------------------------------ 7
+  publish:
+    name: "7. Публикация образа"
+    # Только после успеха ВСЕХ обязательных этапов и только из main: при
+    # падении любого этапа задание пропускается, образ не публикуется.
+    needs: [lint, test, migrations, backup, security, container]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: registry
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Все обязательные этапы успешны
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            [ "$result" = success ] || { echo "::error::этап завершился: $result"; exit 1; }
+          done
+      - name: Тот же образ, что прошёл проверки
+        uses: actions/download-artifact@v4
+        with:
+          name: image
+          path: dist
+      - name: Вход в реестр GitHub (токен — защищённая переменная CI)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: make publish — теги по commit SHA
+        env:
+          APP_VERSION: ${{ needs.container.outputs.version }}
+        run: make publish REGISTRY_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/warehouse-inventory"
+
+  # ------------------------------------------------------------------ итог
+  gate:
+    name: ci-gate
+    # Единственная обязательная проверка в защите ветки main: успешна, только
+    # если успешны все этапы. Пропущенный или упавший этап — не успех.
+    if: always()
+    needs: [lint, test, migrations, backup, security, container]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Все обязательные этапы завершились успешно
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Результаты этапов: $RESULTS"
+          for result in $RESULTS; do
+            [ "$result" = success ] || { echo "::error::этап завершился: $result"; exit 1; }
+          done
+
+  # ------------------------------------------------- отчёт для merge request
+  critical-files:
+    name: "Критические файлы"
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Изменённые критические файлы и число тестов
+        run: python3 scripts/critical_changes.py --github "origin/${{ github.base_ref }}"

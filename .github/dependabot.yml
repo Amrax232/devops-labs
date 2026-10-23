@@ -1,0 +1,23 @@
+# Обновления зависимостей: Dependabot раз в неделю предлагает merge request
+# с новыми версиями. Каждый такой merge request проходит тот же CI, что и
+# изменения команды (включая make deps-audit и make image-scan).
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels: [dependencies]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels: [dependencies]

@@ -1,0 +1,19 @@
+# Поиск секретов: make secrets-scan (gitleaks, вся история git).
+# Используются все стандартные правила gitleaks; ниже — только учебные заглушки
+# из шаблонов и тестов, которые секретами не являются. Расширять список можно
+# лишь заглушками: файл критический (.github/CODEOWNERS).
+
+title = "warehouse-inventory"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Учебные пароли-заглушки из .env.example, документации и тестов"
+regexTarget = "match"
+regexes = [
+    '''warehouse123''',
+    '''test-password''',
+    '''container-lint-placeholder''',
+    '''CHANGE_ME''',
+]
