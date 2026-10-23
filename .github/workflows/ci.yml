@@ -209,7 +209,7 @@ jobs:
             [ "$result" = success ] || { echo "::error::этап завершился: $result"; exit 1; }
           done
       - name: Тот же образ, что прошёл проверки
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: image
           path: dist
