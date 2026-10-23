@@ -74,7 +74,7 @@ jobs:
         run: make mutation
       - name: Отчёты тестов
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: reports-tests
           path: reports/
@@ -137,7 +137,7 @@ jobs:
         run: make deps-audit
       - name: Отчёты анализаторов
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: reports-security
           path: reports/
@@ -172,14 +172,14 @@ jobs:
       - name: make image-scan — анализ образа (trivy)
         run: make image-scan
       - name: Проверенный образ — для этапа публикации
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: image
           path: dist/image.tar
           retention-days: 3
       - name: Отчёты контейнерной проверки
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: reports-container
           path: reports/
