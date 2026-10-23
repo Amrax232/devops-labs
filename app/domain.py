@@ -67,7 +67,7 @@ def apply_write_off(stock: object, quantity: object) -> Decimal:
     """Новый остаток после списания. Списать больше, чем есть, нельзя."""
     current = to_decimal(stock)
     requested = ensure_positive(quantity)
-    if requested > current:
+    if requested >= current:
         raise RuleViolation(
             "Нельзя списать больше, чем есть на складе",
             {"stock": str(current), "requested": str(requested)},
