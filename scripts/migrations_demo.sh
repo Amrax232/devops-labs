@@ -3,18 +3,26 @@
 #
 # Всё выполняется в отдельной базе warehouse_migrations_demo, рабочая база
 # не затрагивается. В конце демонстрационная база удаляется.
+# Alembic запускается в контейнерной среде — разовым контейнером migrate
+# (тот же образ, что и у приложения), база — сервис db во внутренней сети.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 [ -f .env ] && set -a && . ./.env && set +a
 PG_USER="${POSTGRES_USER:-warehouse}"
 PG_PASSWORD="${POSTGRES_PASSWORD:-warehouse}"
-PG_PORT="${POSTGRES_PORT:-5432}"
 DEMO_DB="warehouse_migrations_demo"
-DEMO_URL="postgresql+psycopg2://${PG_USER}:${PG_PASSWORD}@localhost:${PG_PORT}/${DEMO_DB}"
+DEMO_URL="postgresql+psycopg2://${PG_USER}:${PG_PASSWORD}@db:5432/${DEMO_DB}"
 
 psql_demo() { docker compose exec -T db psql -U "$PG_USER" -d "$DEMO_DB" -v ON_ERROR_STOP=1 "$@"; }
-alembic_demo() { DATABASE_URL="$DEMO_URL" .venv/bin/alembic "$@"; }
+alembic_demo() {
+    docker compose run --rm --no-deps -T -e DATABASE_URL="$DEMO_URL" migrate alembic "$@"
+}
+
+if ! docker compose ps --status running -q db 2> /dev/null | grep -q .; then
+    echo "База не запущена: выполните make up" >&2
+    exit 1
+fi
 
 docker compose exec -T db dropdb -U "$PG_USER" --if-exists "$DEMO_DB"
 docker compose exec -T db createdb -U "$PG_USER" "$DEMO_DB"

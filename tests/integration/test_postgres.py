@@ -62,8 +62,7 @@ def test_database_rejects_non_positive_write_off(migrated_engine: Engine) -> Non
         with migrated_engine.begin() as connection:
             connection.execute(
                 text(
-                    "INSERT INTO write_offs (material_id, quantity, reason) "
-                    "VALUES (:id, 0, 'тест')"
+                    "INSERT INTO write_offs (material_id, quantity, reason) VALUES (:id, 0, 'тест')"
                 ),
                 {"id": material_id},
             )

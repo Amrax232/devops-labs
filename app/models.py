@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import enum
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -31,7 +31,7 @@ class ReceiptStatus(str, enum.Enum):
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Unit(Base):
@@ -76,12 +76,8 @@ class Material(Base):
     sku: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     unit_id: Mapped[int] = mapped_column(ForeignKey("units.id"), nullable=False)
-    quantity: Mapped[Decimal] = mapped_column(
-        Numeric(14, 3), nullable=False, default=Decimal("0")
-    )
-    min_stock: Mapped[Decimal] = mapped_column(
-        Numeric(14, 3), nullable=False, default=Decimal("0")
-    )
+    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False, default=Decimal("0"))
+    min_stock: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False, default=Decimal("0"))
     # Место хранения (ячейка склада). Добавлено миграцией 0003 со значением
     # по умолчанию, чтобы колонку NOT NULL можно было добавить в заполненную таблицу.
     location: Mapped[str] = mapped_column(

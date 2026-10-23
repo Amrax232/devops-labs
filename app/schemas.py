@@ -204,6 +204,7 @@ class HealthResponse(BaseModel):
     app: str
     version: str
     environment: str
+    instance: str
 
 
 class ReadinessResponse(BaseModel):
