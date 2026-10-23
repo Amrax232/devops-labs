@@ -1,0 +1,40 @@
+# Владельцы критических файлов приёмки (docs/ci.md).
+#
+# Изменение любого файла ниже нельзя влить в main без одобрения владельца:
+# защита ветки main включает «Require review from Code Owners» (scripts/setup_github.sh).
+# Автор merge request сам себя одобрить не может — нужен второй участник команды.
+#
+# Логины заполняет scripts/setup_github.sh; пока остаются заглушки CHANGE_ME,
+# make policy не проходит.
+
+# Pipeline, шаблоны, сами правила владения
+/.github/                     @Amrax232 @Amrax232 @Amrax232
+
+# Команды проверки и настройки анализаторов
+/Makefile                     @Amrax232 @Amrax232 @Amrax232
+/pyproject.toml               @Amrax232 @Amrax232 @Amrax232
+/.gitleaks.toml               @Amrax232 @Amrax232 @Amrax232
+/security/                    @Amrax232 @Amrax232 @Amrax232
+/scripts/                     @Amrax232 @Amrax232 @Amrax232
+
+# Тесты
+/tests/                       @Amrax232 @Amrax232 @Amrax232
+
+# Зависимости
+/requirements.txt             @Amrax232 @Amrax232 @Amrax232
+/requirements-dev.txt         @Amrax232 @Amrax232 @Amrax232
+/requirements.lock            @Amrax232 @Amrax232 @Amrax232
+
+# Контейнерная среда
+/Dockerfile                   @Amrax232 @Amrax232 @Amrax232
+/.dockerignore                @Amrax232 @Amrax232 @Amrax232
+/docker-compose*.yml          @Amrax232 @Amrax232 @Amrax232
+/nginx/                       @Amrax232 @Amrax232 @Amrax232
+
+# Схема БД и настройки безопасности приложения
+/migrations/                  @Amrax232 @Amrax232 @Amrax232
+/alembic.ini                  @Amrax232 @Amrax232 @Amrax232
+/app/config.py                @Amrax232 @Amrax232 @Amrax232
+/app/security.py              @Amrax232 @Amrax232 @Amrax232
+/.env.example                 @Amrax232 @Amrax232 @Amrax232
+/.gitignore                   @Amrax232 @Amrax232 @Amrax232

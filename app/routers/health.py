@@ -19,6 +19,7 @@ def healthz(settings: Settings = Depends(get_settings)) -> HealthResponse:
         app=settings.app_name,
         version=__version__,
         environment=settings.app_env,
+        instance=settings.instance_id,
     )
 
 

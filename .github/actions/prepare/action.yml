@@ -1,0 +1,36 @@
+name: Подготовка окружения
+description: >-
+  Python с кэшем зависимостей, .env из защищённых переменных CI и make setup —
+  та же первоначальная настройка, что выполняет разработчик локально.
+
+inputs:
+  auth-password:
+    description: пароль API для тестов и контейнеров (секрет CI_AUTH_PASSWORD)
+    required: true
+  postgres-password:
+    description: пароль PostgreSQL (секрет CI_POSTGRES_PASSWORD)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Python 3.12 и кэш pip
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        cache: pip
+        cache-dependency-path: |
+          requirements.txt
+          requirements-dev.txt
+          requirements.lock
+
+    - name: .env из защищённых переменных CI
+      shell: bash
+      env:
+        CI_AUTH_PASSWORD: ${{ inputs.auth-password }}
+        CI_POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
+      run: ./scripts/ci_env.sh
+
+    - name: make setup
+      shell: bash
+      run: make setup

@@ -13,6 +13,8 @@ def main() -> None:
         port=settings.app_port,
         reload=settings.app_env == "local",
         log_level=settings.log_level.lower(),
+        # время на завершение текущих запросов после SIGTERM
+        timeout_graceful_shutdown=15,
     )
 
 

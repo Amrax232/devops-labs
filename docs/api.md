@@ -12,6 +12,10 @@
 | `POST`, `PATCH`, `DELETE` — добавление, изменение, удаление | `401 unauthorized` | разрешено |
 
 Логин и пароль берутся из переменных `AUTH_USERNAME` и `AUTH_PASSWORD`.
+
+Каждый ответ содержит заголовок `X-Instance-Id` — идентификатор экземпляра
+приложения (`INSTANCE_ID`), который его сформировал.
+
 Служебные `/`, `/healthz`, `/readyz` открыты всегда. Переданные логин и пароль
 проверяются при любом запросе: неверный пароль даёт 401 даже при чтении.
 
@@ -63,8 +67,11 @@ curl -u admin:warehouse123 -X POST localhost:8000/api/v1/units \
 ## Служебные маршруты
 
 ```bash
-curl http://localhost:8000/healthz
-# {"status":"ok","app":"warehouse-inventory","version":"0.1.0","environment":"local"}
+curl -i http://127.0.0.1:8080/healthz          # через Nginx (make up)
+# HTTP/1.1 200 OK
+# x-instance-id: app-2                          ← экземпляр, обработавший запрос
+# x-upstream: 172.30.10.12:8000                 ← адрес, выбранный балансировщиком
+# {"status":"ok","app":"warehouse-inventory","version":"0.6.0","environment":"container","instance":"app-2"}
 
 curl http://localhost:8000/readyz
 # {"status":"ok","database":"ok"}

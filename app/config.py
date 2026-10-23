@@ -1,7 +1,9 @@
 """Конфигурация приложения. Все параметры читаются из переменных окружения."""
 
+import socket
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +23,11 @@ class Settings(BaseSettings):
     app_host: str = "127.0.0.1"
     app_port: int = 8000
     log_level: str = "INFO"
+
+    # Идентификатор экземпляра приложения: возвращается в заголовке X-Instance-Id
+    # и в /healthz, чтобы при нескольких экземплярах за балансировщиком было видно,
+    # кто обработал запрос. В контейнерах задаётся через INSTANCE_ID.
+    instance_id: str = Field(default_factory=socket.gethostname)
 
     # Строка подключения к БД. Формат SQLAlchemy.
     database_url: str = "postgresql+psycopg2://warehouse:warehouse@localhost:5432/warehouse"

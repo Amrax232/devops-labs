@@ -8,16 +8,19 @@ Closes #<номер задачи>
 
 ## Как проверялось
 
-- [ ] `make verify` проходит локально
+- [ ] `make verify` проходит локально, `ci-gate` в CI — зелёный
+- [ ] изменена контейнерная среда (Dockerfile, docker-compose*.yml, nginx/) —
+      `make container-check` проходит, вывод приложен; иначе — не применимо
 - [ ] новое поведение закрыто тестом
 - [ ] документация обновлена (README / docs)
 
 ## Критические файлы
 
 - [ ] изменений в критических файлах нет
-- [ ] изменены критические файлы (перечислить и пояснить):
+- [ ] изменены критические файлы (перечислить и пояснить; список — отчёт
+      «Критические файлы» этого merge request):
 
-<!-- Makefile, docker-compose.yml, alembic.ini, migrations/**, app/config.py,
+<!-- Makefile, Dockerfile, .dockerignore, docker-compose*.yml, nginx/**, alembic.ini, migrations/**, app/config.py,
      app/db.py, .env.example, .gitignore, requirements*.txt, pyproject.toml -->
 
 ## Секреты

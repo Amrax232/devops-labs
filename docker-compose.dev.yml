@@ -1,0 +1,19 @@
+# Дополнение для локальной разработки: make dev-db
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
+#
+# Открывает порт PostgreSQL только на 127.0.0.1 — для make run, make migrate и
+# интеграционных тестов, которые запускаются из .venv на машине разработчика.
+# В основном файле порта БД нет: в контейнерном окружении он не нужен.
+# Сеть dev нужна потому, что из внутренней сети (internal: true) порт
+# опубликовать нельзя.
+
+services:
+  db:
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    networks:
+      dev: {}
+
+networks:
+  dev: {}

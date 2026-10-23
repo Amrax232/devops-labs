@@ -47,7 +47,7 @@
 | СУБД | PostgreSQL 16 (в контейнере) |
 | Тесты | pytest (на SQLite, без внешних зависимостей) |
 | Качество кода | ruff (формат + статический анализ) |
-| Окружение | Docker Compose, Makefile |
+| Окружение | Docker Compose (БД, миграции, 2 экземпляра приложения, Nginx), Makefile |
 
 ---
 
@@ -57,16 +57,22 @@
 git clone <url-репозитория> && cd warehouse-inventory
 
 make setup           # venv, зависимости, .env из .env.example
-make up              # поднять PostgreSQL в контейнере
-make migrate         # применить миграции
-make run             # приложение на http://localhost:8000
+make lock            # один раз: зафиксировать версии (requirements.lock) и закоммитить
+make up              # собрать образ и поднять всё: db → migrate → app1, app2 → nginx
+make container-seed  # демонстрационные данные (по желанию)
 ```
 
-Проверка: <http://localhost:8000/healthz>, интерактивная документация —
-<http://localhost:8000/docs>.
+Сервис доступен только через Nginx: <http://127.0.0.1:8080/docs>,
+<http://127.0.0.1:8080/healthz>. Полная проверка контейнерной среды —
+`make container-check`, описание — [`docs/containers.md`](docs/containers.md).
 
-Без Docker: поднимите свой PostgreSQL и укажите строку подключения в `.env`
-(`DATABASE_URL`).
+Разработка без пересборки образа — приложение из `.venv`, база в контейнере:
+
+```bash
+make dev-db          # только PostgreSQL, порт на 127.0.0.1:5432
+make migrate         # миграции из .venv
+make run             # приложение на http://localhost:8000 с автоперезагрузкой
+```
 
 ---
 
@@ -92,13 +98,42 @@ make run             # приложение на http://localhost:8000
 | `make backup` / `make restore FILE=...` | резервная копия и восстановление |
 | `make restore-demo` | копия → повреждение → восстановление → сверка |
 | `make verify` | **весь обязательный набор проверок** |
-| `make up` / `make down` | запуск/остановка PostgreSQL в контейнере |
+| `make ci` | весь pipeline CI локально, в том же порядке |
+| `make secrets-scan` / `make deps-audit` / `make image-scan` | секреты в истории git, уязвимости зависимостей, анализ образа |
+| `make migrations-check` / `make backup-check` | этапы CI «Миграции» и «Резервное копирование» |
+| `make up` / `make down` | запуск/остановка контейнерного окружения (данные в томе сохраняются) |
+| `make dev-db` | только PostgreSQL с портом на 127.0.0.1 — для `make run` и тестов |
+| `make container-check` | полная проверка контейнерной среды (обязательна при её изменении) |
+| `make container-lint` | статические запреты: `latest`, root, секреты, healthcheck, порты |
+| `make restore-new-volume` | восстановление резервной копии в новый пустой том со сверкой |
 
 `make verify` обязателен перед каждым merge request. Он выполняет по порядку:
-политику качества, проверку секретов, линтер, SAST, подготовку тестовой базы,
+политику качества, проверку секретов (файлы и история git), линтер, SAST,
+проверку зависимостей, запреты для контейнеров, подготовку тестовой базы,
 все уровни тестов с порогом покрытия 80 % и мутационное тестирование с порогом
 80 %. Состав и назначение шагов — [`docs/quality-policy.md`](docs/quality-policy.md),
 стратегия тестирования — [`docs/testing.md`](docs/testing.md).
+
+---
+
+## Непрерывная интеграция
+
+GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) запускается
+при каждом `push` и merge request в `main`. Этапы:
+
+1. стиль и политика;
+2. тесты;
+3. миграции;
+4. резервное копирование;
+5. безопасность (gitleaks, bandit, pip-audit);
+6. контейнерная проверка и анализ образа (trivy);
+7. публикация образа в `ghcr.io` с тегом по commit SHA — только из `main` и
+   только после успеха всех этапов.
+
+Каждый этап вызывает те же make-цели, что и `make verify` / `make ci` локально.
+Слить изменение в `main` можно только при зелёной проверке `ci-gate` и с
+одобрением владельца критических файлов (`.github/CODEOWNERS`). Подробности —
+[`docs/ci.md`](docs/ci.md).
 
 ---
 
@@ -124,7 +159,11 @@ make run             # приложение на http://localhost:8000
 ├── scripts/                # backup/restore, мутации, политика качества
 ├── deploy/                 # развёртывание на Linux-серверах (ЛР2)
 ├── docs/                   # ТЗ, API, схема БД, регламент
-├── docker-compose.yml      # PostgreSQL
+├── nginx/nginx.conf        # балансировщик перед app1 и app2
+├── Dockerfile              # образ приложения
+├── .dockerignore           # белый список контекста сборки
+├── docker-compose.yml      # db, migrate, app1, app2, nginx
+├── docker-compose.dev.yml  # порт БД на 127.0.0.1 для разработки
 ├── Makefile                # единые команды проверки
 ├── .env.example            # шаблон переменных окружения
 └── .gitignore
@@ -257,7 +296,7 @@ sudo bash deploy/app/30-firewall-app.sh     # сетевые ограничен�
 | Участник 2 | поставщики (`suppliers`) |
 | Участник 3 | поступления и отчёты (`receipts`, `reports`) |
 
-Общие файлы (`Makefile`, `docker-compose.yml`, миграции, конфигурация) считаются
+Общие файлы (`Makefile`, `Dockerfile`, `docker-compose*.yml`, `nginx/`, миграции, конфигурация) считаются
 критическими: изменения в них отдельно отмечаются в merge request и проверяются
 всей командой.
 
@@ -278,6 +317,10 @@ sudo bash deploy/app/30-firewall-app.sh     # сетевые ограничен�
 | [`docs/migrations.md`](docs/migrations.md) | история и правила миграций схемы |
 | [`docs/backup.md`](docs/backup.md) | резервное копирование и восстановление |
 | [`docs/lab3-checklist.md`](docs/lab3-checklist.md) | что показывать на защите лабораторной работы №3 |
+| [`docs/containers.md`](docs/containers.md) | контейнерное окружение: образ, compose, Nginx, ресурсы, масштабирование |
+| [`docs/lab4-checklist.md`](docs/lab4-checklist.md) | что показывать на защите лабораторной работы №4 |
+| [`docs/ci.md`](docs/ci.md) | непрерывная интеграция: этапы, секреты, публикация, защита критических файлов |
+| [`docs/lab5-checklist.md`](docs/lab5-checklist.md) | что показывать на защите лабораторной работы №5 |
 | [`deploy/README.md`](deploy/README.md) | развёртывание на двух Linux-машинах |
 | [`deploy/security.md`](deploy/security.md) | правила безопасности и сетевых ограничений |
 | [`deploy/checklist-lab2.md`](deploy/checklist-lab2.md) | что показывать на защите лабораторной работы №2 |
