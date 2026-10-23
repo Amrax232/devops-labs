@@ -164,7 +164,7 @@ jobs:
       - name: make container-check — сборка, запуск и 14 проверок окружения
         run: make container-check
       - name: Кэш базы уязвимостей trivy
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/trivy
           key: trivy-db-${{ runner.os }}-${{ github.run_id }}
