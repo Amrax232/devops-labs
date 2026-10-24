@@ -8,33 +8,33 @@
 # make policy не проходит.
 
 # Pipeline, шаблоны, сами правила владения
-/.github/                     @Amrax232 @Amrax232 @Amrax232
+/.github/                     @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
 
 # Команды проверки и настройки анализаторов
-/Makefile                     @Amrax232 @Amrax232 @Amrax232
-/pyproject.toml               @Amrax232 @Amrax232 @Amrax232
-/.gitleaks.toml               @Amrax232 @Amrax232 @Amrax232
-/security/                    @Amrax232 @Amrax232 @Amrax232
-/scripts/                     @Amrax232 @Amrax232 @Amrax232
+/Makefile                     @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/pyproject.toml               @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/.gitleaks.toml               @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/security/                    @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/scripts/                     @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
 
 # Тесты
-/tests/                       @Amrax232 @Amrax232 @Amrax232
+/tests/                       @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
 
 # Зависимости
-/requirements.txt             @Amrax232 @Amrax232 @Amrax232
-/requirements-dev.txt         @Amrax232 @Amrax232 @Amrax232
-/requirements.lock            @Amrax232 @Amrax232 @Amrax232
+/requirements.txt             @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/requirements-dev.txt         @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/requirements.lock            @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
 
 # Контейнерная среда
-/Dockerfile                   @Amrax232 @Amrax232 @Amrax232
-/.dockerignore                @Amrax232 @Amrax232 @Amrax232
-/docker-compose*.yml          @Amrax232 @Amrax232 @Amrax232
-/nginx/                       @Amrax232 @Amrax232 @Amrax232
+/Dockerfile                   @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/.dockerignore                @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/docker-compose*.yml          @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/nginx/                       @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
 
 # Схема БД и настройки безопасности приложения
-/migrations/                  @Amrax232 @Amrax232 @Amrax232
-/alembic.ini                  @Amrax232 @Amrax232 @Amrax232
-/app/config.py                @Amrax232 @Amrax232 @Amrax232
-/app/security.py              @Amrax232 @Amrax232 @Amrax232
-/.env.example                 @Amrax232 @Amrax232 @Amrax232
-/.gitignore                   @Amrax232 @Amrax232 @Amrax232
+/migrations/                  @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/alembic.ini                  @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/app/config.py                @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/app/security.py              @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/.env.example                 @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/.gitignore                   @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3

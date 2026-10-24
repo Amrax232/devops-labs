@@ -15,8 +15,8 @@
 | Сервис | Образ | Назначение | Пользователь |
 |---|---|---|---|
 | `db` | `postgres:16.4-alpine3.20` | PostgreSQL, данные в томе `db_data` | `postgres` (uid 70): entrypoint понижает права |
-| `migrate` | `warehouse-inventory:0.7.0` | разовый: `alembic upgrade head` и завершение | `app` (uid 10001) |
-| `app1`, `app2` | `warehouse-inventory:0.7.0` | два экземпляра API (uvicorn) | `app` (uid 10001) |
+| `migrate` | `warehouse-inventory:0.8.0` | разовый: `alembic upgrade head` и завершение | `app` (uid 10001) |
+| `app1`, `app2` | `warehouse-inventory:0.8.0` | два экземпляра API (uvicorn) | `app` (uid 10001) |
 | `nginx` | `nginxinc/nginx-unprivileged:1.27.2-alpine` | единственная точка входа, балансировщик | `nginx` (uid 101) |
 
 **Порядок запуска** обеспечивается `depends_on` с условиями:

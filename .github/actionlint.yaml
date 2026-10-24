@@ -1,0 +1,4 @@
+# Настройки actionlint: метка self-hosted runner тестового окружения (ЛР6)
+self-hosted-runner:
+  labels:
+    - staging

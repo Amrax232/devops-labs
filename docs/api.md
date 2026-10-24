@@ -16,7 +16,7 @@
 Каждый ответ содержит заголовок `X-Instance-Id` — идентификатор экземпляра
 приложения (`INSTANCE_ID`), который его сформировал.
 
-Служебные `/`, `/healthz`, `/readyz` открыты всегда. Переданные логин и пароль
+Служебные `/`, `/healthz`, `/readyz`, `/version` открыты всегда. Переданные логин и пароль
 проверяются при любом запросе: неверный пароль даёт 401 даже при чтении.
 
 ```bash
@@ -74,7 +74,10 @@ curl -i http://127.0.0.1:8080/healthz          # через Nginx (make up)
 # {"status":"ok","app":"warehouse-inventory","version":"0.6.0","environment":"container","instance":"app-2"}
 
 curl http://localhost:8000/readyz
-# {"status":"ok","database":"ok"}
+# {"status":"ok","database":"ok"}       без базы — 503 {"status":"degraded","database":"unavailable"}
+
+curl http://127.0.0.1:8080/version      # какая версия работает (проверка после развёртывания)
+# {"version":"0.8.0","revision":"3f2a9c1…","environment":"container","instance":"app-1"}
 ```
 
 ---
