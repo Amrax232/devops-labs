@@ -207,6 +207,13 @@ class HealthResponse(BaseModel):
     instance: str
 
 
+class VersionResponse(BaseModel):
+    version: str
+    revision: str
+    environment: str
+    instance: str
+
+
 class ReadinessResponse(BaseModel):
     status: str
     database: str

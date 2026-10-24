@@ -17,7 +17,7 @@ HTTP_PORT := $(or $(call env_value,HTTP_PORT),8080)
 # PostgreSQL с портом на 127.0.0.1 — для разработки из .venv (make run, тесты)
 COMPOSE_DEV := docker compose -f docker-compose.yml -f docker-compose.dev.yml
 # Образ: тег берётся из окружения (в CI — версия и commit SHA), затем из .env
-APP_VERSION ?= $(or $(call env_value,APP_VERSION),0.7.0)
+APP_VERSION ?= $(or $(call env_value,APP_VERSION),0.8.0)
 IMAGE ?= warehouse-inventory:$(APP_VERSION)
 DIST := dist
 # Сканеры запускаются в контейнерах с закреплёнными версиями: локально и в CI
@@ -37,7 +37,7 @@ DOCKER_USER := $(shell id -u):$(shell id -g)
 	    verify build up down ps logs dev-db container-lint container-migrate \
 	    container-seed restore-new-volume container-check clean \
 	    secrets-scan deps-audit migrations-check backup-check image-save image-scan \
-	    publish critical-changes ci
+	    publish critical-changes ci smoke
 
 help: ## Показать список команд
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -251,6 +251,9 @@ publish: ## Только CI: опубликовать проверенный о�
 	done
 	@docker image inspect -f 'Digest: {{index .RepoDigests 0}}' "$(REGISTRY_IMAGE):$$GITHUB_SHA"
 
+smoke: ## Проверка работающего релиза: make smoke [URL=http://...] [REVISION=<SHA>]
+	./scripts/smoke_test.sh $(or $(URL),http://127.0.0.1:$(HTTP_PORT)) $(REVISION)
+
 critical-changes: ## Изменённые критические файлы и число тестов: make critical-changes [BASE=origin/main]
 	$(PY) scripts/critical_changes.py $(or $(BASE),origin/main)
 
@@ -259,6 +262,7 @@ ci: ## Весь pipeline CI локально, в том же порядке
 	@$(MAKE) --no-print-directory migrations-check
 	@$(MAKE) --no-print-directory backup-check
 	@$(MAKE) --no-print-directory container-check
+	@$(MAKE) --no-print-directory smoke
 	@$(MAKE) --no-print-directory image-scan
 
 clean: ## Удалить временные файлы и отчёты

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Базовая настройка машины: выполняется на ОБЕИХ виртуальных машинах.
+# Базовая настройка машины: выполняется на КАЖДОЙ виртуальной машине
+# (warehouse-app и warehouse-db — ЛР2, warehouse-stage — тестовое окружение ЛР6).
 #
 # Что делает:
 #   - обновляет пакеты и ставит минимальный набор утилит;
@@ -7,17 +8,18 @@
 #   - создаёт администратора deployer (sudo, вход только по ключу);
 #   - запрещает вход root по SSH и аутентификацию по паролю.
 #
-# Запуск (от root):  bash 00-base-setup.sh app|db
+# Запуск (от root):  bash 00-base-setup.sh app|db|stage
 set -euo pipefail
 
 ROLE="${1:-}"
-if [[ "$ROLE" != "app" && "$ROLE" != "db" ]]; then
-    echo "Использование: $0 app|db" >&2
+if [[ "$ROLE" != "app" && "$ROLE" != "db" && "$ROLE" != "stage" ]]; then
+    echo "Использование: $0 app|db|stage" >&2
     exit 1
 fi
 
 APP_IP="${APP_IP:-192.168.56.10}"
 DB_IP="${DB_IP:-192.168.56.11}"
+STAGE_IP="${STAGE_IP:-192.168.56.20}"
 ADMIN_USER="${ADMIN_USER:-deployer}"
 
 if [[ $EUID -ne 0 ]]; then
@@ -32,8 +34,9 @@ apt-get install -y -qq sudo ufw curl ca-certificates gnupg vim less git
 
 echo "==> 2/5 имя машины и /etc/hosts"
 hostnamectl set-hostname "warehouse-${ROLE}"
-grep -q "$APP_IP" /etc/hosts || echo "$APP_IP  app" >> /etc/hosts
-grep -q "$DB_IP" /etc/hosts || echo "$DB_IP  db" >> /etc/hosts
+grep -q "$APP_IP" /etc/hosts || echo "$APP_IP  warehouse-app" >> /etc/hosts
+grep -q "$DB_IP" /etc/hosts || echo "$DB_IP  warehouse-db" >> /etc/hosts
+grep -q "$STAGE_IP" /etc/hosts || echo "$STAGE_IP  warehouse-stage" >> /etc/hosts
 
 echo "==> 3/5 администратор $ADMIN_USER"
 if ! id "$ADMIN_USER" >/dev/null 2>&1; then
