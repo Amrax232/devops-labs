@@ -38,3 +38,6 @@
 /app/security.py              @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
 /.env.example                 @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
 /.gitignore                   @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+
+# Развёртывание в тестовое окружение (ЛР6)
+/deploy/                      @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
