@@ -1,0 +1,116 @@
+# Непрерывная поставка в тестовое окружение (ЛР6).
+#
+# Успешная сборка ≠ успешный выпуск: версия принимается только после
+# проверки в целевой среде. Задание выполняет self-hosted runner на сервере
+# staging (метка staging, учётная запись deploy) и вызывает
+# deploy/stage/deploy.sh — тот же скрипт, что запускается на сервере вручную.
+#
+#   автоматически — после успешного CI на main (образ уже опубликован);
+#   вручную       — Actions → CD (staging) → Run workflow:
+#                   развернуть конкретный тег, вернуть предыдущую версию
+#                   или имитировать сбой выпуска (для защиты).
+#
+# Ограничения:
+#   - только ветка main: окружение staging разрешено лишь для защищённой
+#     ветки, запуски из merge request и форков сюда не попадают
+#     (событий pull_request нет — код из MR не выполняется на сервере);
+#   - одно развёртывание за раз: concurrency (здесь) и flock (в deploy.sh);
+#   - при желании — ручное подтверждение: Required reviewers окружения staging.
+
+name: CD (staging)
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Действие"
+        type: choice
+        options: [deploy, rollback, status]
+        default: deploy
+      tag:
+        description: "Тег образа: полный SHA, sha-XXXXXXX или версия-XXXXXXX (пусто — последний коммит main)"
+        type: string
+        required: false
+      simulate:
+        description: "Имитация сбоя выпуска (для защиты)"
+        type: choice
+        options: [none, healthcheck, scenario, registry, missing-var]
+        default: none
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false      # начатое развёртывание не прерывается, следующее ждёт
+
+jobs:
+  deploy:
+    name: "Развёртывание в staging и проверка выпуска"
+    # Автоматически — только после успешного CI по push в main этого репозитория.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: [self-hosted, linux, staging]
+    timeout-minutes: 30
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_URL }}
+    steps:
+      - name: Рабочая копия (вся история — compose-файлы берутся из коммита образа)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Параметры выпуска
+        id: release
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_ACTION: ${{ inputs.action }}
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_SIMULATE: ${{ inputs.simulate }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          action="${INPUT_ACTION:-deploy}"
+          tag="${INPUT_TAG:-$HEAD_SHA}"          # по умолчанию — образ этого коммита (тег = SHA)
+          simulate="${INPUT_SIMULATE:-none}"
+          [ "$EVENT" = workflow_run ] && simulate=none
+          {
+            echo "action=$action"
+            echo "tag=$tag"
+            echo "simulate=$simulate"
+          } >> "$GITHUB_OUTPUT"
+          echo "Действие: $action, тег: $tag, имитация: $simulate"
+
+      - name: Вход в реестр (только чтение)
+        if: steps.release.outputs.action != 'status'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: echo "$TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+
+      - name: deploy.sh — развёртывание и проверка выпуска
+        # значения — через переменные окружения, а не подстановкой в текст
+        # команды: введённый вручную тег не может стать частью скрипта
+        env:
+          ACTION: ${{ steps.release.outputs.action }}
+          TAG: ${{ steps.release.outputs.tag }}
+          SIMULATE_FAILURE: ${{ steps.release.outputs.simulate }}
+        run: ./deploy/stage/deploy.sh "$ACTION" "$TAG"
+
+      - name: Состояние окружения
+        if: always()
+        run: ./deploy/stage/deploy.sh status
+
+      - name: Выход из реестра
+        if: always()
+        run: docker logout ghcr.io

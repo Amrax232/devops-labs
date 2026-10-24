@@ -1,0 +1,13 @@
+# Имитация (ЛР6, защита): новый выпуск не проходит healthcheck.
+# Подключается только при SIMULATE_FAILURE=healthcheck.
+x-unhealthy: &unhealthy
+  healthcheck:
+    test: ["CMD", "false"]
+    interval: 3s
+    timeout: 2s
+    retries: 2
+    start_period: 0s
+
+services:
+  app1: *unhealthy
+  app2: *unhealthy

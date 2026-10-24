@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     # кто обработал запрос. В контейнерах задаётся через INSTANCE_ID.
     instance_id: str = Field(default_factory=socket.gethostname)
 
+    # Коммит, из которого собран образ (APP_REVISION задаёт Dockerfile из
+    # аргумента сборки VCS_REF). По /version видно, какая версия работает.
+    app_revision: str = "local"
+
     # Строка подключения к БД. Формат SQLAlchemy.
     database_url: str = "postgresql+psycopg2://warehouse:warehouse@localhost:5432/warehouse"
 

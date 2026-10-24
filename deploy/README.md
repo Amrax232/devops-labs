@@ -1,6 +1,6 @@
 # Развёртывание в Linux-среде (лабораторная работа №2)
 
-Приложение разворачивается на двух виртуальных машинах Debian 13 без графической
+Приложение разворачивается на двух виртуальных машинах Debian 12 без графической
 оболочки и без контейнеров: системные пакеты, `systemd`, `ufw`, SSH по ключам.
 
 ```
@@ -10,9 +10,9 @@
    ┌────────┴──────────────── сеть VirtualBox 192.168.56.0/24 ─────────────┐
    │                                                                       │
 ┌──┴───────────────────────┐                            ┌──────────────────┴──┐
-│ app            │   5432/tcp только отсюда   │ db      │
-│ 192.168.56.10            │ ─────────────────────────▶| 192.168.56.11        
-│ Python 3.13 + uvicorn    │                            │ PostgreSQL 17       │
+│ warehouse-app            │   5432/tcp только отсюда   │ warehouse-db        │
+│ 192.168.56.10            │ ─────────────────────────▶ │ 192.168.56.11       │
+│ Python 3.11 + uvicorn    │                            │ PostgreSQL 15       │
 │ сервис warehouse.service │                            │ база warehouse      │
 │ открыт порт 8000         │                            │ порт 5432 закрыт    │
 └──────────────────────────┘                            └─────────────────────┘
@@ -25,16 +25,25 @@
 | `common/00-base-setup.sh` | обе машины | пакеты, имя хоста, администратор `deployer`, ограничения SSH |
 | `common/ssh-hardening.conf` | обе машины | конфигурация SSH: только ключи, без root |
 | `common/interfaces.example` | обе машины | пример постоянной IP-адресации |
-| `db/10-install-postgres.sh` | `db` | PostgreSQL, база и пользователь с минимальными правами |
-| `db/20-firewall-db.sh` | `db` | 5432 только для сервера приложения |
-| `app/10-install-runtime.sh` | `app` | Python, пользователь `warehouse`, каталоги и права |
-| `app/warehouse.env.example` | `app` | шаблон `/etc/warehouse/warehouse.env` |
-| `app/20-deploy-app.sh` | `app` | код, зависимости, миграции, unit-файл, перезапуск |
-| `app/warehouse.service` | `app` | systemd-сервис с автозапуском и перезапуском |
-| `app/30-firewall-app.sh` | `app` | открыты только SSH и 8000 |
-| `app/status.sh` | `app` | диагностика одной командой |
+| `db/10-install-postgres.sh` | `warehouse-db` | PostgreSQL, база и пользователь с минимальными правами |
+| `db/20-firewall-db.sh` | `warehouse-db` | 5432 только для сервера приложения |
+| `app/10-install-runtime.sh` | `warehouse-app` | Python, пользователь `warehouse`, каталоги и права |
+| `app/warehouse.env.example` | `warehouse-app` | шаблон `/etc/warehouse/warehouse.env` |
+| `app/20-deploy-app.sh` | `warehouse-app` | код, зависимости, миграции, unit-файл, перезапуск |
+| `app/warehouse.service` | `warehouse-app` | systemd-сервис с автозапуском и перезапуском |
+| `app/30-firewall-app.sh` | `warehouse-app` | открыты только SSH и 8000 |
+| `app/status.sh` | `warehouse-app` | диагностика одной командой |
 | `security.md` | — | зафиксированные правила безопасности |
 | `checklist-lab2.md` | — | что показывать на защите |
+| `stage/10-install-docker.sh` | `warehouse-stage` (ЛР6) | Docker Engine и compose из репозитория Docker, jq |
+| `stage/20-deploy-user.sh` | `warehouse-stage` | учётная запись `deploy`, `/opt/warehouse-stage`, `stage.env` |
+| `stage/30-github-runner.sh` | `warehouse-stage` | GitHub runner (метка `staging`) как служба от `deploy` |
+| `stage/40-firewall-stage.sh` | `warehouse-stage` | SSH и 8080 только из лабораторной сети |
+| `stage/deploy.sh` | `warehouse-stage` | выпуск: образ из реестра, проверка, возврат версии |
+| `stage/stage.env.example` | `warehouse-stage` | шаблон настроек тестового окружения |
+
+Тестовое окружение ЛР6 (`warehouse-stage`, 192.168.56.20) — отдельная машина с
+контейнерами; описание — [`../docs/cd.md`](../docs/cd.md).
 
 ## Порядок развёртывания
 
@@ -49,12 +58,12 @@
 - **Адаптер 1** — NAT (интернет для `apt`);
 - **Адаптер 2** — «Виртуальный адаптер хоста» (Host-only, сеть `192.168.56.0/24`).
 
-Имена: `app` и `db`.
+Имена: `warehouse-app` и `warehouse-db`.
 
 ### Шаг 2. Постоянные адреса
 
 На каждой машине от root отредактируйте `/etc/network/interfaces` по образцу
-`common/interfaces.example` (для `db` адрес `192.168.56.11`), затем:
+`common/interfaces.example` (для `warehouse-db` адрес `192.168.56.11`), затем:
 
 ```bash
 systemctl restart networking
@@ -69,8 +78,8 @@ ip -br addr        # убедитесь, что enp0s8 получил нужны
 выполните от root:
 
 ```bash
-bash deploy/common/00-base-setup.sh app     # на app
-bash deploy/common/00-base-setup.sh db      # на db
+bash deploy/common/00-base-setup.sh app     # на warehouse-app
+bash deploy/common/00-base-setup.sh db      # на warehouse-db
 ```
 
 На своём компьютере создайте ключ и разложите его:

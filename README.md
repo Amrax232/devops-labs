@@ -101,6 +101,7 @@ make run             # приложение на http://localhost:8000 с авт
 | `make ci` | весь pipeline CI локально, в том же порядке |
 | `make secrets-scan` / `make deps-audit` / `make image-scan` | секреты в истории git, уязвимости зависимостей, анализ образа |
 | `make migrations-check` / `make backup-check` | этапы CI «Миграции» и «Резервное копирование» |
+| `make smoke [URL=...] [REVISION=...]` | проверка работающего релиза: служебные адреса, версия, основной сценарий |
 | `make up` / `make down` | запуск/остановка контейнерного окружения (данные в томе сохраняются) |
 | `make dev-db` | только PostgreSQL с портом на 127.0.0.1 — для `make run` и тестов |
 | `make container-check` | полная проверка контейнерной среды (обязательна при её изменении) |
@@ -131,6 +132,11 @@ GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) запу
    только после успеха всех этапов.
 
 Каждый этап вызывает те же make-цели, что и `make verify` / `make ci` локально.
+
+После успешного CI на `main` задание **CD (staging)** разворачивает образ в
+тестовом окружении (ВМ `warehouse-stage`, self-hosted runner) и проверяет
+выпуск: контейнеры, `/version`, основной сценарий. При неудаче выпуск не
+принимается и возвращается предыдущая версия. Подробности — [`docs/cd.md`](docs/cd.md).
 Слить изменение в `main` можно только при зелёной проверке `ci-gate` и с
 одобрением владельца критических файлов (`.github/CODEOWNERS`). Подробности —
 [`docs/ci.md`](docs/ci.md).
@@ -321,6 +327,8 @@ sudo bash deploy/app/30-firewall-app.sh     # сетевые ограничен�
 | [`docs/lab4-checklist.md`](docs/lab4-checklist.md) | что показывать на защите лабораторной работы №4 |
 | [`docs/ci.md`](docs/ci.md) | непрерывная интеграция: этапы, секреты, публикация, защита критических файлов |
 | [`docs/lab5-checklist.md`](docs/lab5-checklist.md) | что показывать на защите лабораторной работы №5 |
+| [`docs/cd.md`](docs/cd.md) | непрерывная поставка: тестовое окружение, выпуск, проверка, возврат версии |
+| [`docs/lab6-checklist.md`](docs/lab6-checklist.md) | что показывать на защите лабораторной работы №6 |
 | [`deploy/README.md`](deploy/README.md) | развёртывание на двух Linux-машинах |
 | [`deploy/security.md`](deploy/security.md) | правила безопасности и сетевых ограничений |
 | [`deploy/checklist-lab2.md`](deploy/checklist-lab2.md) | что показывать на защите лабораторной работы №2 |

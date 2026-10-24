@@ -58,6 +58,8 @@ MUST_BE_INCLUDED = ["app/main.py", "migrations/env.py", "alembic.ini", "requirem
 PLACEHOLDER_ENV = {
     "AUTH_PASSWORD": "container-lint-placeholder",
     "POSTGRES_PASSWORD": "container-lint-placeholder",
+    "REGISTRY_IMAGE": "ghcr.io/container-lint/warehouse-inventory",
+    "IMAGE_TAG": "0123456789abcdef0123456789abcdef01234567",
 }
 
 
@@ -322,6 +324,20 @@ def check_compose() -> list[str]:
     for name in sorted(set(dev["services"]) - {DB_SERVICE}):
         if dev["services"][name].get("ports") != services.get(name, {}).get("ports"):
             problems.append(f"docker-compose.dev.yml: меняет порты сервиса {name}")
+
+    # развёртывание (ЛР6): образ приложения только из реестра, без сборки на сервере
+    deploy_file = ROOT / "docker-compose.deploy.yml"
+    if deploy_file.exists():
+        deployed = compose_config("docker-compose.yml", "docker-compose.deploy.yml")["services"]
+        expected = f"{PLACEHOLDER_ENV['REGISTRY_IMAGE']}:{PLACEHOLDER_ENV['IMAGE_TAG']}"
+        for name in sorted(APP_SERVICES | {"migrate"}):
+            service = deployed.get(name, {})
+            if service.get("build"):
+                problems.append(f"docker-compose.deploy.yml: {name} собирается на сервере")
+            if service.get("image") != expected:
+                problems.append(f"docker-compose.deploy.yml: {name} не из реестра по IMAGE_TAG")
+            if service.get("pull_policy") != "never":
+                problems.append(f"docker-compose.deploy.yml: {name} без pull_policy: never")
     return problems
 
 
