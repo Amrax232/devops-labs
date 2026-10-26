@@ -172,6 +172,7 @@ switch_and_verify() {  # <тег> <коммит> <deploy|rollback> <имитац
             files+=":$REPO_DIR/deploy/stage/faults/$fault.yml" ;;
     esac
     export COMPOSE_FILE="$files" IMAGE_TAG="$tag"
+    export APP_REVISION="$tag"
     image="$REGISTRY_IMAGE:$tag"
 
     log "переключение на $image"
