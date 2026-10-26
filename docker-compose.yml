@@ -20,11 +20,11 @@ name: warehouse-inventory
 
 # ---------------------------------------------------------- общие параметры
 x-app-common: &app-common
-  image: warehouse-inventory:${APP_VERSION:-0.7.0}
+  image: warehouse-inventory:${APP_VERSION:-0.8.0}
   build:
     context: .
     args:
-      APP_VERSION: ${APP_VERSION:-0.7.0}
+      APP_VERSION: ${APP_VERSION:-0.8.0}
       VCS_REF: ${VCS_REF:-local}
       SOURCE_URL: ${SOURCE_URL:-}
   user: "10001:10001"
@@ -44,6 +44,7 @@ x-app-common: &app-common
 x-app-env: &app-env
   APP_NAME: warehouse-inventory
   APP_ENV: container
+  APP_REVISION: ${APP_REVISION:-local}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-warehouse}:${POSTGRES_PASSWORD:-warehouse}@db:5432/${POSTGRES_DB:-warehouse}
   AUTH_USERNAME: ${AUTH_USERNAME:-admin}
@@ -59,7 +60,8 @@ x-app-service: &app-service
     migrate:
       condition: service_completed_successfully
   healthcheck:
-    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)"]
+    # готовность, а не только «процесс жив»: /readyz отвечает 503 без базы данных
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=2)"]
     interval: 10s
     timeout: 3s
     retries: 3

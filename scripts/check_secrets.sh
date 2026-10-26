@@ -11,7 +11,7 @@ fi
 fail=0
 
 # 1. Файлы, которых в репозитории быть не должно
-forbidden=$(git ls-files | grep -E '(^|/)(\.env|\.env\.local|warehouse\.env)$|\.(pem|key|dump|sqlite3)$' || true)
+forbidden=$(git ls-files | grep -E '(^|/)(\.env|\.env\.local|warehouse\.env|stage\.env)$|\.(pem|key|dump|sqlite3)$' || true)
 if [ -n "$forbidden" ]; then
     echo "ОШИБКА: под контролем версий секреты или данные:"
     echo "$forbidden" | sed 's/^/  /'
@@ -27,7 +27,7 @@ if [ -n "$keys" ]; then
 fi
 
 # 3. В шаблонах конфигурации вместо паролей — только заглушки
-for template in .env.example deploy/app/warehouse.env.example; do
+for template in .env.example deploy/app/warehouse.env.example deploy/stage/stage.env.example; do
     [ -f "$template" ] || continue
     leaked=$(grep -nE '^(AUTH_PASSWORD|POSTGRES_PASSWORD)=' "$template" \
         | grep -vE '=(CHANGE_ME|warehouse|warehouse123)$' || true)

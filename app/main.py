@@ -81,4 +81,5 @@ def root() -> dict[str, str]:
         "version": __version__,
         "docs": "/docs",
         "health": "/healthz",
+        "release": "/version",
     }

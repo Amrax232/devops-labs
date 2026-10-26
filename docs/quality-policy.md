@@ -20,6 +20,7 @@
 | Убирать этапы или make-цели из CI, `continue-on-error`, `\|\| true`, публикация без всех проверок | сервер перестаёт быть барьером | разбор `.github/workflows/ci.yml` |
 | Критический файл без владельца, заглушки в CODEOWNERS | изменение пройдёт без обязательного одобрения | `.github/CODEOWNERS` |
 | Принимать уязвимость без обоснования и срока пересмотра | «временное» исключение становится вечным | `security/vulnerability-exceptions.toml` |
+| Запускать задания на self-hosted runner по `push`/`pull_request`, без окружения `staging`, без очереди развёртываний | на сервере выполнится код из любой ветки или форка; два выпуска помешают друг другу | разбор `.github/workflows/*.yml` |
 | Убирать из шаблона merge request пункты `make verify` и `make container-check` | изменение контейнерной среды попадёт в `main` без проверки | разбор `.github/pull_request_template.md` |
 | Образы `latest`, запуск от root, секреты в образе, отключённый healthcheck, лишние порты | см. [`containers.md`](containers.md), раздел 7 | `make container-lint` (`scripts/check_containers.py`) |
 
@@ -44,7 +45,7 @@ request и проверяется ревьюером. «Тест мешает» 
 |---|---|---|---|
 | Покрытие кода `app` (строки и ветвления) | 80 % | `pyproject.toml` | `COVERAGE_FLOOR` в `scripts/check_policy.py` |
 | Мутационное тестирование `app/domain.py` | 80 % | `pyproject.toml` | `MUTATION_FLOOR` в `scripts/check_policy.py` |
-| Число тестовых функций | 106 | `min_test_functions` в `pyproject.toml` | `TESTS_FLOOR` в `scripts/check_policy.py` |
+| Число тестовых функций | 108 | `min_test_functions` в `pyproject.toml` | `TESTS_FLOOR` в `scripts/check_policy.py` |
 | Покрытие требований ТЗ тестами | ≥ 40 % (фактически 100 %) | [`test-matrix.md`](test-matrix.md) | проверяется ревью |
 
 Порог можно **повышать** свободно. Понизить нижнюю границу можно только

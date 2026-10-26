@@ -1,0 +1,10 @@
+# Имитация (ЛР6, защита): приложение запускается и healthcheck проходит,
+# но основной сценарий не работает — экземпляры получили неверный пароль
+# API, и проведение операций отклоняется. Только при SIMULATE_FAILURE=scenario.
+x-broken-config: &broken-config
+  environment:
+    AUTH_PASSWORD: simulated-wrong-password
+
+services:
+  app1: *broken-config
+  app2: *broken-config

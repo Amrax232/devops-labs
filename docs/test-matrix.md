@@ -59,6 +59,8 @@
 | Штатная остановка, соединения с БД закрываются | `test_shutdown_closes_database_connections` | 10 — `docker stop app2` |
 | Отказ экземпляра не прерывает работу | — | 9 — аварийная остановка app1 |
 | Данные сохраняются при пересоздании и обновлении | — | 11 |
+| `/version` называет работающий коммит (ЛР6) | `test_version_reports_release` | `make smoke` после шага 14 |
+| Без базы экземпляр не готов: `/readyz` → 503 (ЛР6) | `test_readyz_without_database_is_503` | healthcheck шага 3 |
 
 ## Итог
 

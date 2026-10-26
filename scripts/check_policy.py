@@ -13,7 +13,9 @@
   - убирать этапы из pipeline CI, разрешать им падать (continue-on-error,
     «|| true») и публиковать образ без успешных проверок;
   - оставлять критические файлы без владельцев в .github/CODEOWNERS;
-  - принимать уязвимости зависимостей без обоснования и срока пересмотра.
+  - принимать уязвимости зависимостей без обоснования и срока пересмотра;
+  - запускать задания на self-hosted runner по push и merge request, без
+    окружения staging, без ограничения одновременных развёртываний.
 
 Обоснование пишется в той же строке после « - » или « — », не короче 10 символов:
     import x  # noqa: F401 - модуль регистрирует модели при импорте
@@ -67,8 +69,12 @@ CI_REQUIRED_TARGETS = {
     "migrations": ["migrations-check"],
     "backup": ["backup-check"],
     "security": ["secrets", "secrets-scan", "sast", "deps-audit"],
-    "container": ["container-check", "image-scan"],
+    "container": ["container-check", "smoke", "image-scan"],
 }
+# Развёртывание (ЛР6): self-hosted runner сервера staging
+CD_WORKFLOW = ".github/workflows/deploy.yml"
+CD_ENVIRONMENT = "staging"
+FORBIDDEN_SELF_HOSTED_EVENTS = {"pull_request", "pull_request_target", "push", "issue_comment"}
 CI_PUBLISH_JOB = "publish"
 CI_GATE_JOB = "gate"
 
@@ -90,6 +96,9 @@ CRITICAL_FILES = [
     ".github/CODEOWNERS",
     "Dockerfile",
     "docker-compose.yml",
+    "docker-compose.deploy.yml",
+    "deploy/stage/deploy.sh",
+    ".github/workflows/deploy.yml",
     "migrations/env.py",
 ]
 
@@ -279,6 +288,49 @@ def check_ci() -> list[str]:
     return problems
 
 
+def check_cd() -> list[str]:
+    """Развёртывание: только после CI на main или вручную, по одному, с проверкой.
+
+    Self-hosted runner выполняет код на сервере, поэтому задания для него не
+    должны запускаться событиями, которые может вызвать посторонний (merge
+    request из форка) или любая ветка.
+    """
+    import yaml  # PyYAML ставится вместе с uvicorn[standard]
+
+    problems: list[str] = []
+    for path in sorted((ROOT / ".github" / "workflows").glob("*.y*ml")):
+        workflow = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        triggers = workflow.get(True) or workflow.get("on") or {}
+        events = set(triggers) if isinstance(triggers, dict) else set(triggers or [])
+        rel = path.relative_to(ROOT).as_posix()
+        for name, job in (workflow.get("jobs") or {}).items():
+            if "self-hosted" not in str(job.get("runs-on", "")):
+                continue
+            bad = sorted(events & FORBIDDEN_SELF_HOSTED_EVENTS)
+            if bad:
+                problems.append(f"{rel}: задание {name} на self-hosted runner запускается по {bad}")
+            environment = job.get("environment") or {}
+            env_name = environment.get("name") if isinstance(environment, dict) else environment
+            if env_name != CD_ENVIRONMENT:
+                problems.append(f"{rel}: задание {name} на self-hosted runner без окружения")
+
+    path = ROOT / CD_WORKFLOW
+    if not path.exists():
+        return problems + [f"нет pipeline развёртывания {CD_WORKFLOW}"]
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    concurrency = workflow.get("concurrency") or {}
+    if not concurrency.get("group") or concurrency.get("cancel-in-progress") is not False:
+        problems.append("развёртывания не ограничены: нужен concurrency, cancel-in-progress: false")
+    text = path.read_text(encoding="utf-8")
+    if "workflow_run.conclusion == 'success'" not in text:
+        problems.append("автоматическое развёртывание не проверяет успех CI")
+    if "deploy/stage/deploy.sh" not in text:
+        problems.append("развёртывание идёт не через deploy/stage/deploy.sh")
+    if re.search(r"continue-on-error:\s*(true|\$\{\{)", text):
+        problems.append("в развёртывании этапу разрешено падать (continue-on-error)")
+    return problems
+
+
 def check_codeowners() -> list[str]:
     sys.path.insert(0, str(ROOT / "scripts"))
     from critical_changes import load_codeowners, owners_of
@@ -311,6 +363,7 @@ def main() -> int:
         + check_pr_template()
         + check_tests_count()
         + check_ci()
+        + check_cd()
         + check_codeowners()
         + check_vulnerability_exceptions()
     )

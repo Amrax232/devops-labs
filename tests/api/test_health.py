@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import __version__
+from app.db import get_db
 from app.main import app
 
 
@@ -19,6 +20,34 @@ def test_readyz_reports_database(client: TestClient) -> None:
     response = client.get("/readyz")
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "database": "ok"}
+
+
+def test_readyz_without_database_is_503(client: TestClient) -> None:
+    """Экземпляр без базы не готов: healthcheck и проверка релиза это видят."""
+
+    class BrokenSession:
+        def execute(self, *_args: object) -> None:
+            raise ConnectionError("база недоступна")
+
+    app.dependency_overrides[get_db] = lambda: BrokenSession()
+    try:
+        response = client.get("/readyz")
+    finally:
+        app.dependency_overrides.pop(get_db)
+    assert response.status_code == 503
+    assert response.json() == {"status": "degraded", "database": "unavailable"}
+
+
+def test_version_reports_release(anonymous_client: TestClient) -> None:
+    """/version открыт без входа и называет версию и коммит образа."""
+    response = anonymous_client.get("/version")
+    assert response.status_code == 200
+    assert response.json() == {
+        "version": __version__,
+        "revision": "test-revision",
+        "environment": "test",
+        "instance": "test-instance",
+    }
 
 
 def test_root_returns_service_info(client: TestClient) -> None:
