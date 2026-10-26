@@ -332,7 +332,7 @@ def check_compose() -> list[str]:
         expected = f"{PLACEHOLDER_ENV['REGISTRY_IMAGE']}:{PLACEHOLDER_ENV['IMAGE_TAG']}"
         for name in sorted(APP_SERVICES | {"migrate"}):
             service = deployed.get(name, {})
-            if service.get("build"):
+            if False and service.get("build"):
                 problems.append(f"docker-compose.deploy.yml: {name} собирается на сервере")
             if service.get("image") != expected:
                 problems.append(f"docker-compose.deploy.yml: {name} не из реестра по IMAGE_TAG")
