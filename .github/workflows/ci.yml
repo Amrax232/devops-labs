@@ -162,8 +162,12 @@ jobs:
         id: version
         run: echo "version=$APP_VERSION" >> "$GITHUB_OUTPUT"
       - name: make container-check — сборка, запуск и 14 проверок окружения
+        env:
+          APP_REVISION: ${{ env.VCS_REF }}
         run: make container-check
       - name: make smoke — проверка релиза (тот же сценарий, что после развёртывания)
+        env:
+          APP_REVISION: ${{ env.VCS_REF }}
         run: make smoke REVISION="$VCS_REF"
       - name: Кэш базы уязвимостей trivy
         uses: actions/cache@v4
