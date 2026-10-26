@@ -8,36 +8,36 @@
 # make policy не проходит.
 
 # Pipeline, шаблоны, сами правила владения
-/.github/                     @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/.github/                     @Amrax232
 
 # Команды проверки и настройки анализаторов
-/Makefile                     @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
-/pyproject.toml               @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
-/.gitleaks.toml               @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
-/security/                    @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
-/scripts/                     @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/Makefile                     @Amrax232
+/pyproject.toml               @Amrax232
+/.gitleaks.toml               @Amrax232
+/security/                    @Amrax232
+/scripts/                     @Amrax232
 
 # Тесты
-/tests/                       @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/tests/                       @Amrax232
 
 # Зависимости
-/requirements.txt             @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
-/requirements-dev.txt         @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
-/requirements.lock            @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/requirements.txt             @Amrax232
+/requirements-dev.txt         @Amrax232
+/requirements.lock            @Amrax232
 
 # Контейнерная среда
-/Dockerfile                   @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
-/.dockerignore                @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
-/docker-compose*.yml          @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
-/nginx/                       @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/Dockerfile                   @Amrax232
+/.dockerignore                @Amrax232
+/docker-compose*.yml          @Amrax232
+/nginx/                       @Amrax232
 
 # Схема БД и настройки безопасности приложения
-/migrations/                  @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
-/alembic.ini                  @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
-/app/config.py                @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
-/app/security.py              @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
-/.env.example                 @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
-/.gitignore                   @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/migrations/                  @Amrax232
+/alembic.ini                  @Amrax232
+/app/config.py                @Amrax232
+/app/security.py              @Amrax232
+/.env.example                 @Amrax232
+/.gitignore                   @Amrax232
 
 # Развёртывание в тестовое окружение (ЛР6)
-/deploy/                      @CHANGE_ME_1 @CHANGE_ME_2 @CHANGE_ME_3
+/deploy/                      @Amrax232
