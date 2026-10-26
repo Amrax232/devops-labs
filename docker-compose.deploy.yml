@@ -1,0 +1,20 @@
+# Развёртывание из реестра (ЛР6): дополнение к docker-compose.yml для
+# тестового окружения. Используется только deploy/stage/deploy.sh:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --no-build
+#
+# - образ приложения берётся из реестра по тегу IMAGE_TAG и на сервере
+#   не собирается: секция build удалена (!reset), pull_policy: never —
+#   если образа нет, развёртывание падает, а не собирает его заново;
+# - настройки окружения (пароли, адрес, порт) — в файле окружения на
+#   сервере, отдельно от образа (deploy/stage/stage.env.example).
+
+x-from-registry: &from-registry
+  image: ${REGISTRY_IMAGE:?не задан REGISTRY_IMAGE}:${IMAGE_TAG:?не задан IMAGE_TAG}
+  build: !reset null
+  pull_policy: never
+
+services:
+  migrate: *from-registry
+  app1: *from-registry
+  app2: *from-registry
