@@ -161,7 +161,11 @@ def create_material(db: Session, data: MaterialCreate) -> Material:
 
 
 def list_materials(
-    db: Session, *, query: str | None = None, below_min: bool = False
+    db: Session,
+    *,
+    query: str | None = None,
+    below_min: bool = False,
+    location: str | None = None,
 ) -> list[Material]:
     stmt = select(Material).options(selectinload(Material.unit)).order_by(Material.sku)
     if query:
@@ -169,6 +173,8 @@ def list_materials(
         stmt = stmt.where(Material.name.ilike(pattern) | Material.sku.ilike(pattern))
     if below_min:
         stmt = stmt.where(Material.quantity < Material.min_stock)
+    if location:
+        stmt = stmt.where(Material.location == location)
     return list(db.scalars(stmt))
 
 

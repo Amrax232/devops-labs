@@ -20,9 +20,12 @@ router = APIRouter(prefix="/api/v1/materials", tags=["materials"])
 def list_materials(
     q: str | None = Query(default=None, description="Поиск по названию или артикулу"),
     below_min: bool = Query(default=False, description="Только позиции ниже минимума"),
+    location: str | None = Query(
+        default=None, max_length=32, description="Место хранения (ячейка склада), точно"
+    ),
     db: Session = Depends(get_db),
 ) -> list[MaterialRead]:
-    return services.list_materials(db, query=q, below_min=below_min)
+    return services.list_materials(db, query=q, below_min=below_min, location=location)
 
 
 @router.post(

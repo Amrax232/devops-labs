@@ -70,3 +70,20 @@ def test_material_search_by_name_and_sku(client: TestClient, material_id: int) -
     assert len(client.get("/api/v1/materials?q=Болт").json()) == 1
     assert len(client.get("/api/v1/materials?q=mat-001").json()) == 1
     assert client.get("/api/v1/materials?q=труба").json() == []
+
+
+def test_materials_filtered_by_location(client: TestClient, unit_id: int, material_id: int) -> None:
+    """Фильтр по месту хранения: точное совпадение ячейки, сочетается с поиском."""
+    response = client.post(
+        "/api/v1/materials",
+        json={"sku": "MAT-777", "name": "Болт М10", "unit_id": unit_id, "location": "A-01"},
+    )
+    assert response.status_code == 201
+
+    in_cell = client.get("/api/v1/materials?location=A-01").json()
+    assert [item["sku"] for item in in_cell] == ["MAT-777"]
+    in_main = client.get("/api/v1/materials?location=MAIN").json()
+    assert [item["sku"] for item in in_main] == ["MAT-001"]
+    assert client.get("/api/v1/materials?location=A-0").json() == []
+    assert len(client.get("/api/v1/materials?q=Болт&location=A-01").json()) == 1
+    assert client.get(f"/api/v1/materials?location={'X' * 33}").status_code == 422
