@@ -1,0 +1,97 @@
+# Применение инфраструктурного кода (ЛР7): Ansible приводит машины окружения
+# к требуемому состоянию и проверяет результат.
+#
+#   автоматически — staging, после успешной проверки infra/ на main;
+#   вручную       — Actions → Infrastructure apply → Run workflow:
+#                   окружение staging или production, режим check (только
+#                   показать изменения) или apply.
+#
+# Каждый запуск ждёт подтверждения (Required reviewers окружения
+# infra-<окружение>). Выполняется на self-hosted runner лабораторной сети;
+# к машинам подключается служебная учётная запись ansible по ключу из
+# секрета окружения. После применения — повторный запуск (changed=0) и проверка.
+
+name: Infrastructure apply
+
+on:
+  workflow_run:
+    workflows: [Infrastructure CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Окружение"
+        type: choice
+        options: [staging, production]
+        default: staging
+      mode:
+        description: "check — только показать изменения; apply — применить и проверить"
+        type: choice
+        options: [check, apply]
+        default: check
+
+permissions:
+  contents: read
+
+# Те же группы, что у развёртывания (deploy.yml): Ansible и CD не меняют
+# одно окружение одновременно
+concurrency:
+  group: deploy-${{ inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: "Ansible: ${{ inputs.environment || 'staging' }} (${{ inputs.mode || 'apply' }})"
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: [self-hosted, linux, staging]
+    timeout-minutes: 40
+    environment:
+      name: infra-${{ inputs.environment || 'staging' }}
+    env:
+      ENV: ${{ inputs.environment || 'staging' }}
+      MODE: ${{ inputs.mode || 'apply' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: make infra-setup — Ansible и коллекции точных версий
+        run: make infra-setup PY=python3
+
+      - name: Ключ ansible и пароль vault из секретов окружения (только на время задания)
+        env:
+          SSH_KEY: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
+          VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+        run: |
+          umask 077
+          printf '%s\n' "$SSH_KEY" > "$RUNNER_TEMP/ansible_key"
+          printf '%s\n' "$VAULT_PASSWORD" > "$RUNNER_TEMP/vault.pass"
+          {
+            echo "ANSIBLE_KEY=$RUNNER_TEMP/ansible_key"
+            echo "VAULT_PASS=$RUNNER_TEMP/vault.pass"
+          } >> "$GITHUB_ENV"
+
+      - name: make infra-check — что изменится (--check --diff)
+        run: make infra-check PY=python3
+
+      - name: make infra-apply — привести окружение к требуемому состоянию
+        if: env.MODE == 'apply'
+        run: make infra-apply PY=python3
+
+      - name: make infra-idempotence — повторный запуск без изменений
+        if: env.MODE == 'apply'
+        run: make infra-idempotence PY=python3
+
+      - name: make infra-verify — приложение доступно, лишних портов нет
+        if: env.MODE == 'apply'
+        run: make infra-verify PY=python3
+
+      - name: Удалить ключ и пароль vault
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ansible_key" "$RUNNER_TEMP/vault.pass"
