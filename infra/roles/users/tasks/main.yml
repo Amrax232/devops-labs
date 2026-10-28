@@ -1,0 +1,60 @@
+---
+- name: Проверить, что ключи и пароли заданы, а не заглушки
+  ansible.builtin.assert:
+    that:
+      - users_admins | map(attribute='public_keys') | flatten | select('match', '^ssh-(ed25519|rsa) ') | list | length > 0
+      - users_admin_password | length >= 12
+      - users_admin_password_salt is match('^[A-Za-z0-9./]{8,16}$')
+    fail_msg: >-
+      Не заданы ключи или пароли: выполните infra/scripts/keygen.sh и
+      infra/scripts/vault_init.sh для окружения {{ env_name | default('?') }}
+    quiet: true
+
+# --------------------------------------------------------- администраторы
+- name: Создать администраторов (вход по ключу, sudo с паролем)
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    shell: /bin/bash
+    groups: sudo
+    append: false
+    # хэш с постоянной солью из vault: повторный запуск не меняет пароль
+    password: "{{ users_admin_password | password_hash('sha512', users_admin_password_salt) }}"
+    update_password: always
+  loop: "{{ users_admins }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+- name: Разрешить вход администраторам только по их ключам
+  ansible.posix.authorized_key:
+    user: "{{ item.name }}"
+    key: "{{ item.public_keys | join('\n') }}"
+    exclusive: true
+  loop: "{{ users_admins }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# ------------------------------------------------- служебная учётная запись Ansible
+- name: Настроить учётную запись ansible
+  ansible.builtin.import_tasks: ansible_account.yml
+
+# -------------------------------------------------- учётная запись CD и runner
+- name: Создать группу deploy
+  ansible.builtin.group:
+    name: "{{ users_deploy_name }}"
+    system: true
+
+- name: Создать учётную запись deploy (без пароля, без входа, без sudo)
+  ansible.builtin.user:
+    name: "{{ users_deploy_name }}"
+    comment: "CD: развёртывание приложения"
+    system: true
+    group: "{{ users_deploy_name }}"
+    # только docker: группы sudo и любые добавленные вручную будут удалены
+    groups: [docker]
+    append: false
+    shell: /usr/sbin/nologin
+    home: "/home/{{ users_deploy_name }}"
+    create_home: true
+    password: "!"
+    update_password: always

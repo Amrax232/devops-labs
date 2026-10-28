@@ -1,0 +1,24 @@
+---
+warehouse_owner: "{{ users_deploy_name | default('deploy') }}"
+warehouse_dir: /opt/warehouse-stage
+warehouse_project: warehouse-stage
+warehouse_env_file: "{{ warehouse_dir }}/env/stage.env"
+warehouse_src_dir: "{{ warehouse_dir }}/src"
+warehouse_registry_image: ""
+warehouse_registry_token: ""
+warehouse_registry_user: "{{ warehouse_registry_image.split('/')[1] | default('') }}"
+warehouse_http_bind: 127.0.0.1
+warehouse_http_port: 8080
+warehouse_log_level: INFO
+warehouse_auth_username: admin
+warehouse_auth_password: ""
+warehouse_postgres_user: warehouse
+warehouse_postgres_password: ""
+warehouse_postgres_db: warehouse
+warehouse_auto_rollback: 1
+# Тег выпуска: в production — желаемая версия; в staging пусто (версией управляет CD).
+# На чистой машине без выпуска тег обязателен: make infra-apply TAG=<тег>
+warehouse_release_tag: ""
+# Сервисы, которые поддерживаются запущенными с текущими настройками (migrate —
+# разовый, запускается только при выпуске новой версии)
+warehouse_services: [db, app1, app2, nginx]

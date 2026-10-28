@@ -1,0 +1,94 @@
+---
+- name: Создать каталог runner (владелец deploy)
+  ansible.builtin.file:
+    path: "{{ github_runner_dir }}"
+    state: directory
+    owner: "{{ github_runner_user }}"
+    group: "{{ github_runner_user }}"
+    mode: "0750"
+
+- name: Распаковать runner {{ github_runner_version }}
+  ansible.builtin.unarchive:
+    src: "https://github.com/actions/runner/releases/download/v{{ github_runner_version }}/actions-runner-linux-x64-{{ github_runner_version }}.tar.gz"
+    dest: "{{ github_runner_dir }}"
+    remote_src: true
+    owner: "{{ github_runner_user }}"
+    group: "{{ github_runner_user }}"
+    creates: "{{ github_runner_dir }}/run.sh"
+
+- name: Установить системные зависимости runner
+  # Обоснование: скрипт из поставки runner ставит нужные ему библиотеки (libicu
+  # и др.); выполняется один раз, отметка — файл .deps-installed.
+  ansible.builtin.command:
+    cmd: "{{ github_runner_dir }}/bin/installdependencies.sh"
+    creates: "{{ github_runner_dir }}/.deps-installed"
+
+- name: Отметить, что зависимости установлены
+  ansible.builtin.file:
+    path: "{{ github_runner_dir }}/.deps-installed"
+    state: touch
+    owner: root
+    group: root
+    mode: "0644"
+    modification_time: preserve
+    access_time: preserve
+
+- name: Узнать, зарегистрирован ли runner
+  ansible.builtin.stat:
+    path: "{{ github_runner_dir }}/.runner"
+  register: github_runner_registration
+
+- name: Проверить, что для первой регистрации есть токен
+  ansible.builtin.assert:
+    that: github_runner_registration.stat.exists or github_runner_token | length > 0
+    fail_msg: >-
+      Runner ещё не зарегистрирован: получите токен (Settings → Actions → Runners →
+      New self-hosted runner или scripts/setup_staging.sh) и запустите
+      make infra-apply ENV={{ env_name | default('staging') }} RUNNER_TOKEN=<токен>
+    quiet: true
+
+- name: Зарегистрировать runner в репозитории
+  # Обоснование: регистрация выполняется только скриптом config.sh из
+  # поставки runner; один раз, пока нет файла .runner. Токен — не в журнал.
+  become: true
+  become_user: "{{ github_runner_user }}"
+  ansible.builtin.command:
+    argv:
+      - "{{ github_runner_dir }}/config.sh"
+      - --unattended
+      - --replace
+      - --url
+      - "{{ github_runner_repo_url }}"
+      - --token
+      - "{{ github_runner_token }}"
+      - --name
+      - "{{ github_runner_name }}"
+      - --labels
+      - "{{ github_runner_labels }}"
+      - --work
+      - _work
+    chdir: "{{ github_runner_dir }}"
+    creates: "{{ github_runner_dir }}/.runner"
+  when: not github_runner_registration.stat.exists
+  no_log: true
+
+- name: Установить runner как службу systemd от имени deploy
+  # Обоснование: unit-файл создаёт svc.sh из поставки runner (имя службы
+  # зависит от репозитория); один раз, отметка — файл .service.
+  ansible.builtin.command:
+    argv: ["{{ github_runner_dir }}/svc.sh", install, "{{ github_runner_user }}"]
+    chdir: "{{ github_runner_dir }}"
+    creates: "{{ github_runner_dir }}/.service"
+
+- name: Узнать имя службы runner
+  ansible.builtin.slurp:
+    src: "{{ github_runner_dir }}/.service"
+  register: github_runner_service
+  failed_when: false
+
+- name: Запустить runner и включить при загрузке
+  ansible.builtin.systemd_service:
+    name: "{{ github_runner_service.content | b64decode | trim }}"
+    state: started
+    enabled: true
+  when: github_runner_service.content is defined

@@ -1,0 +1,7 @@
+---
+# reload, а не restart: остановка службы nftables выполняет «flush ruleset»
+# и стёрла бы правила Docker
+- name: Перезагрузить правила firewall
+  ansible.builtin.service:
+    name: nftables
+    state: reloaded

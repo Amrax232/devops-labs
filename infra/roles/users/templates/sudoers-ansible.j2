@@ -1,0 +1,4 @@
+# {{ ansible_managed }}
+# Служебная учётная запись Ansible: применение конфигурации требует root.
+# Вход в неё — только по ключу и только из {{ users_ansible_sources }}.
+{{ users_ansible_name }} ALL=(ALL:ALL) NOPASSWD: ALL

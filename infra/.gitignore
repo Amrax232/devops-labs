@@ -1,0 +1,7 @@
+# Окружение и коллекции Ansible ставятся make infra-setup
+.venv/
+collections/
+# Пароли vault и ключи — только вне репозитория (~/.config/warehouse/)
+*.pass
+*.key
+*_ansible

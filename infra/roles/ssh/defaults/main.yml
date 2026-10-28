@@ -1,0 +1,7 @@
+---
+ssh_port: 22
+ssh_max_auth_tries: 3
+ssh_allow_users: "{{ (users_admins | default([]) | map(attribute='name') | list) + [users_ansible_name | default('ansible')] }}"
+# Файлы, оставшиеся от ручной настройки (ЛР2, ЛР6): теперь всё в одном шаблоне
+ssh_obsolete_dropins:
+  - /etc/ssh/sshd_config.d/10-hardening.conf

@@ -1,0 +1,54 @@
+---
+- name: Создать каталог ключей APT
+  ansible.builtin.file:
+    path: "{{ docker_keyring | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Получить ключ подписи репозитория Docker
+  ansible.builtin.get_url:
+    url: "{{ docker_repo_url }}/gpg"
+    dest: "{{ docker_keyring }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Убрать описание репозитория, созданное вручную в ЛР6 (заменено файлом ниже)
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/docker.list
+    state: absent
+
+- name: Подключить репозиторий Docker (compose из Debian 12 слишком старый)
+  ansible.builtin.deb822_repository:
+    name: docker
+    types: [deb]
+    uris: "{{ docker_repo_url }}"
+    suites: ["{{ ansible_facts['distribution_release'] }}"]
+    components: [stable]
+    architectures: ["{{ 'amd64' if ansible_facts['architecture'] == 'x86_64' else ansible_facts['architecture'] }}"]
+    signed_by: "{{ docker_keyring }}"
+    state: present
+  register: docker_repository
+
+- name: Установить Docker Engine и compose
+  ansible.builtin.apt:
+    name: "{{ docker_packages }}"
+    state: present
+    update_cache: "{{ docker_repository is changed }}"
+
+- name: Настроить Docker из шаблона (журналы контейнеров с ротацией)
+  ansible.builtin.template:
+    src: daemon.json.j2
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Перезапустить Docker
+
+- name: Запустить Docker и включить при загрузке
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true

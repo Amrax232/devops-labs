@@ -1,0 +1,7 @@
+---
+verify_url: "http://{{ warehouse_http_bind }}:{{ warehouse_http_port }}"
+verify_scenario: false
+# Порты, которые могут слушать на внешних адресах; остальные — только на loopback
+verify_allowed_ports: ["{{ ssh_port | default(22) }}", "{{ warehouse_http_port }}"]
+verify_retries: 20
+verify_delay: 3
