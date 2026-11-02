@@ -3,6 +3,58 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версии — семантические.
 
+## [0.10.0] — 2026-10-28
+
+Результат лабораторной работы №7: управление конфигурацией и
+воспроизводимая инфраструктура (Ansible).
+
+### Добавлено
+
+- `infra/` — Ansible для окружений `staging` (192.168.56.20) и `production`
+  (192.168.56.30). Параметры разделены: общие, окружения, узла и секреты
+  (`ansible-vault`).
+- Роли:
+  - `common` — пакеты, обновления безопасности;
+  - `docker`;
+  - `users` — администраторы, `ansible`, `deploy`;
+  - `ssh`;
+  - `firewall` — nftables, восстановление при ручных изменениях;
+  - `warehouse` — настройки и запуск приложения;
+  - `github_runner`;
+  - `verify` — доступность, версия, сценарий, порты, права.
+- `bootstrap.yml` — подготовка чистой Debian 12, `site.yml` — приведение к
+  требуемому состоянию, `verify.yml` — только проверка.
+- Шаблоны: sshd, nftables, sudoers, `daemon.json`, настройки приложения,
+  обновления безопасности.
+- Цели make:
+  - `infra-setup`, `infra-lint`, `infra-keygen`, `infra-known-hosts`;
+  - `infra-bootstrap`, `infra-check`, `infra-apply`, `infra-idempotence`,
+    `infra-verify`;
+  - `vault-init`, `vault-edit`, `vault-view`.
+- Pipeline `Infrastructure CI` (ansible-lint, syntax-check, требования) и
+  `Infrastructure apply` (только с подтверждением; применение, повторный
+  запуск без изменений, проверка).
+- `scripts/check_infra.py` — требования к инфраструктурному коду (входят в
+  `make policy`); `scripts/setup_infra.sh` — владельцы `infra/`, окружения
+  с подтверждением, секреты.
+- `docs/infra.md`, `docs/lab7-checklist.md`.
+
+### Изменено
+
+- Проверка выпуска (`scripts/smoke_test.sh`, `deploy.sh`) получила режим
+  только для чтения (`SMOKE_READONLY`, `VERIFY_SCENARIO=0`): production не
+  получает тестовых записей.
+
+## [0.9.0] — 2026-10-20
+
+Сквозной выпуск функции по процессу ЛР6: задача → ветка → `make verify` →
+CI → образ → развёртывание в staging → проверка выпуска.
+
+### Добавлено
+
+- Отбор материалов по месту хранения: `GET /api/v1/materials?location=A-01`
+  (точное совпадение ячейки, сочетается с `q` и `below_min`) — Ф16 в ТЗ.
+
 ## [0.8.0] — 2026-10-20
 
 Результат лабораторной работы №6: непрерывная поставка в тестовое окружение
