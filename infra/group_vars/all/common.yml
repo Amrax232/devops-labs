@@ -56,7 +56,7 @@ docker_log_max_size: 10m
 docker_log_max_file: 3
 
 # --- приложение (роль warehouse)
-warehouse_repo_url: https://github.com/CHANGE_ME/warehouse-inventory.git
+warehouse_repo_url: https://github.com/Amrax232/devops-labs.git
 warehouse_repo_version: main
 warehouse_auth_username: admin
 warehouse_postgres_user: warehouse
