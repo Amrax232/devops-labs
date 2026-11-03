@@ -47,7 +47,7 @@
 - name: Создать учётную запись deploy (без пароля, без входа, без sudo)
   ansible.builtin.user:
     name: "{{ users_deploy_name }}"
-    comment: "CD: развёртывание приложения"
+    comment: "CD application deployment"
     system: true
     group: "{{ users_deploy_name }}"
     # только docker: группы sudo и любые добавленные вручную будут удалены

@@ -10,7 +10,7 @@
 - name: Создать учётную запись ansible
   ansible.builtin.user:
     name: "{{ users_ansible_name }}"
-    comment: "Ansible: управление конфигурацией"
+    comment: "Ansible management account"
     shell: /bin/bash
     groups: []
     append: false
