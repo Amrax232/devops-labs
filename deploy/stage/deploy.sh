@@ -188,7 +188,9 @@ switch_and_verify() {  # <тег> <коммит> <deploy|rollback> <имитац
 
     url="http://${HTTP_BIND/0.0.0.0/127.0.0.1}:$HTTP_PORT"
     log "проверка выпуска: служебные адреса, версия, основной сценарий ($url)"
-    "$dir/scripts/smoke_test.sh" "$url" "$rev" 2>&1 | sed 's/^/    /' || return 1
+    # VERIFY_SCENARIO=0 (production): сценарий без создания тестовых данных
+    SMOKE_READONLY="$([ "${VERIFY_SCENARIO:-1}" = 0 ] && echo 1 || echo 0)" \
+        "$dir/scripts/smoke_test.sh" "$url" "$rev" 2>&1 | sed 's/^/    /' || return 1
 }
 
 release() {  # <тег> <deploy|rollback>

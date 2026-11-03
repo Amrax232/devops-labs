@@ -1,0 +1,41 @@
+# Проверка инфраструктурного кода (ЛР7): при каждом изменении infra/.
+#
+# Те же команды, что локально: make infra-setup, make infra-lint
+# (ansible-lint с профилем production, syntax-check обоих окружений,
+# требования проекта — scripts/check_infra.py). Применение к машинам —
+# отдельный pipeline infra-apply.yml, только после успеха этой проверки.
+
+name: Infrastructure CI
+
+on:
+  push:
+    branches: ["**"]
+    paths: ["infra/**", "scripts/check_infra.py", ".github/workflows/infra-*.yml"]
+  pull_request:
+    branches: [main]
+    paths: ["infra/**", "scripts/check_infra.py", ".github/workflows/infra-*.yml"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: "Инфраструктура: ansible-lint, syntax-check, требования"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: infra/requirements.txt
+      - name: make infra-setup — Ansible и коллекции точных версий
+        run: make infra-setup PY=python3
+      - name: make infra-lint
+        run: make infra-lint PY=python3

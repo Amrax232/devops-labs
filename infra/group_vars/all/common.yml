@@ -1,0 +1,68 @@
+---
+# Общие параметры всех окружений (staging, production).
+# Переопределяются параметрами окружения и узла — см. inventories/*/hosts.yml.
+
+# --- подключение Ansible: отдельная служебная учётная запись (роль users)
+ansible_user: ansible
+
+# --- лабораторная сеть VirtualBox: отсюда разрешены SSH и HTTP
+lab_network: 192.168.56.0/24
+lab_hosts:
+  warehouse-app: 192.168.56.10
+  warehouse-db: 192.168.56.11
+  warehouse-stage: 192.168.56.20
+  warehouse-prod: 192.168.56.30
+
+# --- пакеты (роль common)
+common_packages:
+  - acl                   # права на временные файлы при become_user (Ansible)
+  - ca-certificates
+  - curl
+  - git                   # рабочая копия для deploy.sh, GitHub runner
+  - jq                    # проверка выпуска (scripts/smoke_test.sh)
+  - nftables              # firewall (роль firewall)
+  - openssh-server
+  - python3
+  - python3-venv          # Ansible на runner (pipeline инфраструктуры)
+  - sudo
+  - unattended-upgrades   # автоматические обновления безопасности
+common_absent_packages:
+  - ufw                   # заменён декларативным nftables: два firewall конфликтуют
+  - telnet
+  - rpcbind               # лишний сетевой сервис (порт 111)
+
+# --- пользователи (роль users)
+# Администраторы: вход только по ключу, sudo — с паролем (хэш из vault).
+# Открытые ключи не секрет; заглушки заменяет infra/scripts/keygen.sh.
+users_admins:
+  - name: deployer
+    public_keys:
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP2VrMsLh1UlAyBL/MIskpMAO5H1ivKspKFyrt6hVuTo root@WIN-Q62MSSDLBKP"
+users_deploy_name: deploy        # CD и runner: без sudo, без SSH, только группа docker
+users_ansible_name: ansible      # Ansible: вход по ключу из лабораторной сети, sudo без пароля
+
+# --- SSH (роль ssh)
+ssh_port: 22
+ssh_max_auth_tries: 3
+
+# --- Docker (роль docker)
+docker_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+docker_log_max_size: 10m
+docker_log_max_file: 3
+
+# --- приложение (роль warehouse)
+warehouse_repo_url: https://github.com/Amrax232/devops-labs.git
+warehouse_repo_version: main
+warehouse_auth_username: admin
+warehouse_postgres_user: warehouse
+warehouse_postgres_db: warehouse
+warehouse_auto_rollback: 1
+
+# --- GitHub runner (роль github_runner)
+github_runner_version: 2.321.0
+github_runner_dir: /opt/actions-runner

@@ -1,0 +1,6 @@
+---
+docker_packages: [docker-ce, docker-ce-cli, containerd.io, docker-compose-plugin]
+docker_log_max_size: 10m
+docker_log_max_file: 3
+docker_repo_url: https://download.docker.com/linux/debian
+docker_keyring: /etc/apt/keyrings/docker.asc

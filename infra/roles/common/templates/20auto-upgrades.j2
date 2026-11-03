@@ -1,0 +1,4 @@
+// {{ ansible_managed }}
+// Ежедневно: обновить списки пакетов и установить обновления безопасности.
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";

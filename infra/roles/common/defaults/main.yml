@@ -1,0 +1,5 @@
+---
+common_hostname: "{{ inventory_hostname }}"
+common_packages: []
+common_absent_packages: []
+common_apt_cache_valid_time: 3600

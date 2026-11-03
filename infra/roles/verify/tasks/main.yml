@@ -1,0 +1,102 @@
+---
+# Проверка после применения конфигурации: если что-то не так — запуск Ansible
+# завершается с ошибкой, настройка не считается выполненной.
+
+# --------------------------------------------------------- приложение доступно
+- name: Дождаться ответа /healthz через Nginx
+  ansible.builtin.uri:
+    url: "{{ verify_url }}/healthz"
+    return_content: true
+  register: verify_healthz
+  until: verify_healthz.status == 200
+  retries: "{{ verify_retries }}"
+  delay: "{{ verify_delay }}"
+
+- name: Проверить готовность — база данных доступна (/readyz)
+  ansible.builtin.uri:
+    url: "{{ verify_url }}/readyz"
+    return_content: true
+  register: verify_readyz
+  until: verify_readyz.status == 200 and verify_readyz.json.database == 'ok'
+  retries: "{{ verify_retries }}"
+  delay: "{{ verify_delay }}"
+
+- name: Узнать работающую версию (/version)
+  ansible.builtin.uri:
+    url: "{{ verify_url }}/version"
+    return_content: true
+  register: verify_version
+
+- name: Прочитать коммит выпуска
+  ansible.builtin.slurp:
+    src: "{{ warehouse_dir }}/state/current_revision"
+  register: verify_revision
+
+- name: Проверить, что работает именно выпущенная версия
+  ansible.builtin.assert:
+    that: verify_version.json.revision == (verify_revision.content | b64decode | trim)
+    success_msg: "Работает версия {{ verify_version.json.version }}, коммит {{ verify_version.json.revision }}"
+    fail_msg: "Работает коммит {{ verify_version.json.revision }}, а выпущен {{ verify_revision.content | b64decode | trim }}"
+
+- name: Проверить основной пользовательский сценарий
+  # Обоснование: тот же сценарий проверки релиза, что в CI и CD
+  # (scripts/smoke_test.sh); ничего не меняет в настройках машины.
+  ansible.builtin.command:
+    argv:
+      - "{{ warehouse_dir }}/current/scripts/smoke_test.sh"
+      - "{{ verify_url }}"
+      - "{{ verify_revision.content | b64decode | trim }}"
+  environment:
+    AUTH_USERNAME: "{{ warehouse_auth_username }}"
+    AUTH_PASSWORD: "{{ warehouse_auth_password }}"
+    # production: только чтение, тестовые записи не создаются
+    SMOKE_READONLY: "{{ '0' if verify_scenario | bool else '1' }}"
+  register: verify_smoke
+  changed_when: false
+  check_mode: false
+
+# ------------------------------------------------------------ лишних портов нет
+- name: Получить список прослушиваемых TCP-портов
+  ansible.builtin.command:
+    argv: [ss, -H, -t, -l, -n]
+  register: verify_listening
+  changed_when: false
+  check_mode: false
+
+- name: Проверить, что снаружи доступны только SSH и HTTP приложения
+  vars:
+    verify_external: >-
+      {{ verify_listening.stdout_lines
+         | map('split') | map(attribute=3)
+         | reject('match', '^(127\.|\[::1\]|::1)')
+         | map('regex_replace', '^.*:', '') | map('int') | unique | list }}
+  ansible.builtin.assert:
+    that: verify_external is subset(verify_allowed_ports | map('int') | list)
+    success_msg: "Снаружи слушают порты: {{ verify_external | join(', ') }}"
+    fail_msg: "Лишние открытые порты: {{ verify_external | difference(verify_allowed_ports | map('int') | list) | join(', ') }}"
+
+# -------------------------------------------------------------- права и секреты
+- name: Узнать права файла настроек окружения
+  ansible.builtin.stat:
+    path: "{{ warehouse_env_file }}"
+  register: verify_env_file
+
+- name: Проверить, что секреты доступны только deploy (права 600)
+  ansible.builtin.assert:
+    that:
+      - verify_env_file.stat.mode == '0600'
+      - verify_env_file.stat.pw_name == (users_deploy_name | default('deploy'))
+    fail_msg: "{{ warehouse_env_file }}: права {{ verify_env_file.stat.mode }}, владелец {{ verify_env_file.stat.pw_name }}"
+
+- name: Узнать группы учётной записи deploy
+  ansible.builtin.command:
+    argv: [id, -nG, "{{ users_deploy_name | default('deploy') }}"]
+  register: verify_deploy_groups
+  changed_when: false
+  check_mode: false
+
+- name: Проверить минимальные права deploy (только docker, без sudo)
+  ansible.builtin.assert:
+    that: verify_deploy_groups.stdout.split() | sort == ([users_deploy_name | default('deploy'), 'docker'] | sort)
+    success_msg: "deploy: группы {{ verify_deploy_groups.stdout }}"
+    fail_msg: "deploy: лишние группы — {{ verify_deploy_groups.stdout }}"

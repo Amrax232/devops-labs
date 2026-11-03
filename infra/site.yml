@@ -1,0 +1,27 @@
+---
+# Приведение машины к требуемому состоянию: make infra-apply ENV=<окружение>.
+# Повторный запуск без изменений в коде ничего не меняет (make infra-idempotence),
+# а ручные изменения управляемых параметров отменяет.
+- name: Настройка машин «Складского учёта»
+  hosts: warehouse
+  become: true
+  roles:
+    - role: common
+      tags: [common]
+    - role: docker
+      tags: [docker]
+    - role: users
+      tags: [users]
+    - role: ssh
+      tags: [ssh]
+    - role: firewall
+      tags: [firewall]
+    - role: warehouse
+      tags: [warehouse]
+    - role: github_runner
+      tags: [runner]
+      when: github_runner_enabled | bool
+    # в режиме --check приложение не перезапускается — проверять нечего
+    - role: verify
+      tags: [verify]
+      when: not ansible_check_mode
