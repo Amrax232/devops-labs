@@ -1,0 +1,14 @@
+---
+# Шаблон секретов окружения. Настоящий файл vault.yml создаёт
+# infra/scripts/vault_init.sh <окружение> — со случайными значениями и сразу
+# зашифрованным (ansible-vault). Незашифрованный vault.yml в репозиторий не
+# попадает: make policy проверяет заголовок $ANSIBLE_VAULT.
+vault_warehouse_auth_password: CHANGE_ME
+vault_warehouse_postgres_password: CHANGE_ME
+# вход admin в Grafana (ЛР8)
+vault_warehouse_grafana_admin_password: CHANGE_ME
+# пароль sudo администраторов и соль для воспроизводимого хэша (16 символов)
+vault_users_admin_password: CHANGE_ME
+vault_users_admin_password_salt: CHANGE_ME
+# необязательно: токен чтения ghcr.io (read:packages), если пакет образа приватный
+vault_warehouse_registry_token: ""

@@ -14,7 +14,8 @@
 #   2. настройки окружения — файл на сервере, отдельно от образа: все
 #      обязательные переменные должны быть заданы, иначе выпуск не начинается;
 #   3. образ скачивается из реестра (не собирается); по метке образа
-#      определяется коммит, из него берутся compose-файлы и nginx.conf;
+#      определяется коммит, из него берутся compose-файлы, nginx.conf и
+#      конфигурация мониторинга (monitoring/, с ЛР8);
 #   4. копия базы перед выпуском;
 #   5. переключение: docker compose up --no-build;
 #   6. проверка выпуска: все контейнеры healthy и из нужного образа,
@@ -39,9 +40,12 @@ RELEASES="$STAGE_DIR/releases"
 BACKUPS="$STAGE_DIR/backups"
 SIMULATE="${SIMULATE_FAILURE:-none}"
 REQUIRED_VARS=(REGISTRY_IMAGE AUTH_USERNAME AUTH_PASSWORD
-               POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB HTTP_BIND HTTP_PORT)
+               POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB HTTP_BIND HTTP_PORT
+               GRAFANA_ADMIN_PASSWORD)
 BUNDLE=(docker-compose.yml docker-compose.deploy.yml nginx deploy/stage
         scripts/compose_wait.sh scripts/smoke_test.sh)
+# есть только в выпусках начиная с ЛР8 (наблюдаемость): берутся, если есть в коммите
+OPTIONAL_BUNDLE=(monitoring scripts/obs.sh scripts/logs.sh scripts/chaos.sh)
 
 log() { echo "[$(date '+%F %T')] $*"; }
 die() { log "ОШИБКА: $*" >&2; record FAILED "${TAG:-$TAG_ARG}" "$*"; summary "НЕ ВЫПОЛНЕНО" "$*"; exit 1; }
@@ -138,7 +142,11 @@ prepare_release() {  # compose-файлы и nginx.conf — из того же �
     git -C "$REPO_DIR" cat-file -e "$rev^{commit}" 2> /dev/null \
         || die "коммита $rev нет в рабочей копии $REPO_DIR (нужен checkout с fetch-depth: 0)"
     tmp="$(mktemp -d "$RELEASES/.tmp-XXXXXX")"
-    git -C "$REPO_DIR" archive "$rev" "${BUNDLE[@]}" | tar -x -C "$tmp" \
+    local paths=("${BUNDLE[@]}") extra
+    for extra in "${OPTIONAL_BUNDLE[@]}"; do
+        git -C "$REPO_DIR" cat-file -e "$rev:$extra" 2> /dev/null && paths+=("$extra")
+    done
+    git -C "$REPO_DIR" archive "$rev" "${paths[@]}" | tar -x -C "$tmp" \
         || { rm -rf "$tmp"; die "в коммите $rev нет файлов развёртывания (выпуск собран до ЛР6)"; }
     mv "$tmp" "$dir"
     log "файлы выпуска из коммита $rev: $dir"
@@ -172,7 +180,7 @@ switch_and_verify() {  # <тег> <коммит> <deploy|rollback> <имитац
             files+=":$REPO_DIR/deploy/stage/faults/$fault.yml" ;;
     esac
     export COMPOSE_FILE="$files" IMAGE_TAG="$tag"
-    export APP_REVISION="$tag"
+export APP_REVISION="$tag"
     image="$REGISTRY_IMAGE:$tag"
 
     log "переключение на $image"
@@ -188,7 +196,9 @@ switch_and_verify() {  # <тег> <коммит> <deploy|rollback> <имитац
 
     url="http://${HTTP_BIND/0.0.0.0/127.0.0.1}:$HTTP_PORT"
     log "проверка выпуска: служебные адреса, версия, основной сценарий ($url)"
-    "$dir/scripts/smoke_test.sh" "$url" "$rev" 2>&1 | sed 's/^/    /' || return 1
+    # VERIFY_SCENARIO=0 (production): сценарий без создания тестовых данных
+    SMOKE_READONLY="$([ "${VERIFY_SCENARIO:-1}" = 0 ] && echo 1 || echo 0)" \
+        "$dir/scripts/smoke_test.sh" "$url" "$rev" 2>&1 | sed 's/^/    /' || return 1
 }
 
 release() {  # <тег> <deploy|rollback>
@@ -207,6 +217,7 @@ release() {  # <тег> <deploy|rollback>
     previous_tag="$(stack_top)"
     previous_rev="$(cat "$STATE/current_revision" 2> /dev/null || true)"
     export COMPOSE_FILE="$RELEASES/$rev/docker-compose.yml:$RELEASES/$rev/docker-compose.deploy.yml"
+export APP_REVISION="$tag"
     export IMAGE_TAG="$tag"
     [ "$mode" = rollback ] || backup_db "$tag"
 

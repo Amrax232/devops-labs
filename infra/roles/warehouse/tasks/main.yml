@@ -1,0 +1,140 @@
+---
+- name: Проверить настройки окружения
+  ansible.builtin.assert:
+    that:
+      - warehouse_registry_image is match('^ghcr\.io/[a-z0-9_.-]+/warehouse-inventory$')
+      - warehouse_auth_password | length >= 12
+      - warehouse_postgres_password | length >= 12
+      - warehouse_postgres_password is match('^[A-Za-z0-9_-]+$')
+      - warehouse_grafana_admin_password | length >= 12
+    fail_msg: >-
+      Неверные настройки окружения {{ env_name | default('?') }}: адрес образа
+      (ghcr.io/<владелец в нижнем регистре>/warehouse-inventory) или пароли из vault.
+      Пароль Grafana (ЛР8) в vault, созданном раньше: make vault-upgrade ENV={{ env_name | default('?') }}
+    quiet: true
+
+# ------------------------------------------------------------- каталоги и права
+- name: Создать каталоги приложения (владелец deploy, другим доступа нет)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ warehouse_owner }}"
+    group: "{{ warehouse_owner }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: "{{ warehouse_dir }}", mode: "0750"}
+    - {path: "{{ warehouse_dir }}/releases", mode: "0750"}
+    - {path: "{{ warehouse_dir }}/state", mode: "0750"}
+    - {path: "{{ warehouse_dir }}/backups", mode: "0750"}
+    - {path: "{{ warehouse_env_file | dirname }}", mode: "0700"}
+
+- name: Записать настройки окружения из шаблона (секреты — из vault)
+  ansible.builtin.template:
+    src: app.env.j2
+    dest: "{{ warehouse_env_file }}"
+    owner: "{{ warehouse_owner }}"
+    group: "{{ warehouse_owner }}"
+    mode: "0600"
+  diff: false          # не показывать пароли в выводе --diff
+
+# ------------------------------------------------------------------ выпуск
+- name: Узнать, какой выпуск работает
+  ansible.builtin.slurp:
+    src: "{{ warehouse_dir }}/state/current_tag"
+  register: warehouse_current
+  failed_when: false
+
+- name: Определить, нужен ли выпуск
+  ansible.builtin.set_fact:
+    warehouse_running_tag: "{{ (warehouse_current.content | default('') | b64decode).strip() }}"
+    warehouse_deploy_needed: >-
+      {{ (warehouse_release_tag | length > 0)
+         and (warehouse_release_tag != (warehouse_current.content | default('') | b64decode).strip()) }}
+
+- name: Проверить, что на чистой машине указана версия
+  ansible.builtin.assert:
+    that: warehouse_running_tag | length > 0 or warehouse_release_tag | length > 0
+    fail_msg: "Выпуска ещё нет: укажите тег образа — make infra-apply ENV={{ env_name | default('?') }} TAG=<тег>"
+    quiet: true
+
+- name: Выпустить версию {{ warehouse_release_tag }}
+  when: warehouse_deploy_needed | bool
+  block:
+    - name: Получить рабочую копию репозитория (deploy.sh и файлы выпуска)
+      become: true
+      become_user: "{{ warehouse_owner }}"
+      ansible.builtin.git:
+        repo: "{{ warehouse_repo_url }}"
+        dest: "{{ warehouse_src_dir }}"
+        version: "{{ warehouse_repo_version }}"
+        force: true
+
+    - name: Войти в реестр образов (если пакет приватный)
+      # Обоснование: модуль docker_login требует Python-библиотеку docker;
+      # пароль передаётся через stdin и в журнал не попадает.
+      become: true
+      become_user: "{{ warehouse_owner }}"
+      ansible.builtin.command:
+        argv: [docker, login, ghcr.io, -u, "{{ warehouse_registry_user }}", --password-stdin]
+        stdin: "{{ warehouse_registry_token }}"
+      when: warehouse_registry_token | length > 0
+      changed_when: false
+      no_log: true
+
+    - name: Развернуть и проверить выпуск (deploy.sh из ЛР6)
+      # Обоснование: тот же сценарий выпуска, что в CD: образ из реестра, копия
+      # БД, переключение, проверка, автоматический возврат при неудаче.
+      become: true
+      become_user: "{{ warehouse_owner }}"
+      ansible.builtin.command:
+        argv: ["{{ warehouse_src_dir }}/deploy/stage/deploy.sh", deploy, "{{ warehouse_release_tag }}"]
+      environment:
+        STAGE_DIR: "{{ warehouse_dir }}"
+        STAGE_PROJECT: "{{ warehouse_project }}"
+        ENV_FILE: "{{ warehouse_env_file }}"
+      register: warehouse_deploy
+      changed_when: true
+
+  always:
+    - name: Выйти из реестра образов
+      # Обоснование: учётные данные реестра не остаются на сервере.
+      become: true
+      become_user: "{{ warehouse_owner }}"
+      ansible.builtin.command:
+        argv: [docker, logout, ghcr.io]
+      when: warehouse_registry_token | length > 0
+      changed_when: false
+
+- name: Узнать сервисы работающего выпуска
+  # Обоснование: только чтение конфигурации compose, на машине ничего не меняется.
+  become: true
+  become_user: "{{ warehouse_owner }}"
+  ansible.builtin.command:
+    argv: [docker, compose, -f, docker-compose.yml, -f, docker-compose.deploy.yml,
+           --env-file, "{{ warehouse_env_file }}", config, --services]
+    chdir: "{{ warehouse_dir }}/current"
+  environment:
+    IMAGE_TAG: "{{ warehouse_running_tag }}"
+  register: warehouse_compose_services
+  changed_when: false
+  check_mode: false
+  when: not warehouse_deploy_needed | bool
+
+- name: Поддерживать работающий выпуск с текущими настройками окружения
+  # Пересоздаёт контейнеры, только если изменились настройки (например,
+  # stage.env) или контейнер остановлен; иначе изменений нет.
+  become: true
+  become_user: "{{ warehouse_owner }}"
+  community.docker.docker_compose_v2:
+    project_src: "{{ warehouse_dir }}/current"
+    project_name: "{{ warehouse_project }}"
+    files: [docker-compose.yml, docker-compose.deploy.yml]
+    env_files: ["{{ warehouse_env_file }}"]
+    services: "{{ warehouse_compose_services.stdout_lines | difference(warehouse_oneshot_services) }}"
+    dependencies: false
+    pull: policy
+    build: never
+    state: present
+  environment:
+    IMAGE_TAG: "{{ warehouse_release_tag if warehouse_deploy_needed | bool else warehouse_running_tag }}"
+  when: not warehouse_deploy_needed | bool

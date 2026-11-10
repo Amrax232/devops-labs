@@ -5,6 +5,7 @@
     {"error": {"code": "...", "message": "...", "details": {...}}}
 """
 
+import logging
 from typing import Any
 
 from fastapi import FastAPI, Request, status
@@ -14,6 +15,9 @@ from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.domain import RuleViolation
+from app.metrics import AUTH_FAILURES
+
+logger = logging.getLogger("app.errors")
 
 
 class AppError(Exception):
@@ -69,6 +73,9 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(AppError)
     async def _app_error(_: Request, exc: AppError) -> JSONResponse:
+        if isinstance(exc, AuthError):
+            AUTH_FAILURES.inc()
+            logger.warning(exc.message, extra={"event": "auth_failed"})
         return JSONResponse(
             status_code=exc.status_code,
             content=error_body(exc.code, exc.message, exc.details),
@@ -77,6 +84,7 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RuleViolation)
     async def _rule_violation(_: Request, exc: RuleViolation) -> JSONResponse:
+        logger.info(exc.message, extra={"event": "business_rule_violated"})
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             content=error_body(BusinessRuleError.code, exc.message, exc.details),

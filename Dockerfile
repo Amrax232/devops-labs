@@ -30,7 +30,7 @@ RUN pip install -r requirements.txt -c requirements.lock
 # ------------------------------------------------------------------ runtime
 FROM ${PYTHON_IMAGE} AS runtime
 
-ARG APP_VERSION=0.7.0
+ARG APP_VERSION=0.8.0
 # коммит и репозиторий, из которых собран образ (передаёт CI)
 ARG VCS_REF=local
 ARG SOURCE_URL=""
@@ -61,6 +61,10 @@ COPY migrations ./migrations
 COPY app ./app
 COPY scripts/seed.py ./scripts/seed.py
 
+# Коммит образа виден приложению: GET /version (проверка после развёртывания).
+# Не секрет; задаётся в конце, чтобы не сбрасывать кэш предыдущих слоёв.
+ENV APP_REVISION=${VCS_REF}
+
 USER 10001:10001
 
 EXPOSE 8000
@@ -78,6 +82,6 @@ STOPSIGNAL SIGTERM
 # соединение закрывает nginx, а не приложение — без гонки «запрос в закрытое соединение».
 CMD ["uvicorn", "app.main:app", \
      "--host", "0.0.0.0", "--port", "8000", \
-     "--proxy-headers", "--no-server-header", \
+     "--proxy-headers", "--no-server-header", "--no-access-log", \
      "--timeout-keep-alive", "65", \
      "--timeout-graceful-shutdown", "15"]

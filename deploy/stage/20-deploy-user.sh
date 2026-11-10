@@ -45,6 +45,7 @@ else
     sed -e "s|^REGISTRY_IMAGE=.*|REGISTRY_IMAGE=$REGISTRY_IMAGE|" \
         -e "s|^AUTH_PASSWORD=.*|AUTH_PASSWORD=$(openssl rand -hex 16)|" \
         -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 16)|" \
+        -e "s|^GRAFANA_ADMIN_PASSWORD=.*|GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 16)|" \
         "$TEMPLATE" > "$ENV_FILE"
     chown "$DEPLOY_USER:$DEPLOY_USER" "$ENV_FILE"
     chmod 600 "$ENV_FILE"

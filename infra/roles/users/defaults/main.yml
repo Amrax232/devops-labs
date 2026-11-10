@@ -1,0 +1,8 @@
+---
+users_admins: []
+users_admin_password: ""
+users_admin_password_salt: ""
+users_deploy_name: deploy
+users_ansible_name: ansible
+users_ansible_public_key: ""
+users_ansible_sources: "{{ lab_network | default('192.168.56.0/24') }}"

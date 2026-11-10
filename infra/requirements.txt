@@ -1,0 +1,5 @@
+# Управляющая машина Ansible (WSL, runner): make infra-setup → infra/.venv
+ansible-core==2.18.1
+ansible-lint==24.12.2
+# хэш пароля sudo администраторов (фильтр password_hash) без устаревшего модуля crypt
+passlib==1.7.4

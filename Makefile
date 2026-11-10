@@ -37,7 +37,11 @@ DOCKER_USER := $(shell id -u):$(shell id -g)
 	    verify build up down ps logs dev-db container-lint container-migrate \
 	    container-seed restore-new-volume container-check clean \
 	    secrets-scan deps-audit migrations-check backup-check image-save image-scan \
-	    publish critical-changes ci smoke
+	    publish critical-changes ci smoke \
+	    infra-setup infra-lint infra-known-hosts infra-keygen infra-bootstrap infra-check \
+	    infra-apply infra-idempotence infra-verify vault-init vault-upgrade vault-edit vault-view \
+	    monitoring-lint status alerts metrics-query logs-find logs-secrets release-snapshot \
+	    grafana chaos
 
 help: ## Показать список команд
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -73,6 +77,7 @@ format: ## Привести код к единому формату
 lint: ## Линтер: формат и статический анализ (ruff), без исправлений
 	$(BIN)/ruff format --check .
 	$(BIN)/ruff check .
+	$(MAKE) monitoring-lint
 
 sast: ## Статический анализ безопасности (bandit), отчёт в reports/bandit.json
 	@mkdir -p $(REPORTS)
@@ -157,25 +162,27 @@ backup-check: dev-db ## Этап CI: миграции, демо-данные, к
 
 # ---------------------------------------------------- единый проверочный контур
 verify: ## ВСЕ обязательные проверки — запускать перед каждым merge request
-	@echo "==> 1/10 policy: политика качества"
+	@echo "==> 1/11 policy: политика качества"
 	@$(MAKE) --no-print-directory policy
-	@echo "==> 2/10 secrets: секреты не в репозитории"
+	@echo "==> 2/11 secrets: секреты не в репозитории"
 	@$(MAKE) --no-print-directory secrets
-	@echo "==> 3/10 secrets-scan: поиск секретов в истории git"
+	@echo "==> 3/11 secrets-scan: поиск секретов в истории git"
 	@$(MAKE) --no-print-directory secrets-scan
-	@echo "==> 4/10 lint: формат и статический анализ"
+	@echo "==> 4/11 lint: формат и статический анализ"
 	@$(MAKE) --no-print-directory lint
-	@echo "==> 5/10 sast: анализ безопасности кода"
+	@echo "==> 5/11 sast: анализ безопасности кода"
 	@$(MAKE) --no-print-directory sast
-	@echo "==> 6/10 deps-audit: уязвимости зависимостей"
+	@echo "==> 6/11 deps-audit: уязвимости зависимостей"
 	@$(MAKE) --no-print-directory deps-audit
-	@echo "==> 7/10 container-lint: запреты для образа и compose"
+	@echo "==> 7/11 container-lint: запреты для образа и compose"
 	@$(MAKE) --no-print-directory container-lint
-	@echo "==> 8/10 test-db: тестовая база PostgreSQL"
+	@echo "==> 8/11 monitoring-lint: правила оповещений, их тесты, панели"
+	@$(MAKE) --no-print-directory monitoring-lint
+	@echo "==> 9/11 test-db: тестовая база PostgreSQL"
 	@$(MAKE) --no-print-directory test-db
-	@echo "==> 9/10 coverage: unit, API и интеграционные тесты с покрытием"
+	@echo "==> 10/11 coverage: unit, API и интеграционные тесты с покрытием"
 	@$(MAKE) --no-print-directory coverage
-	@echo "==> 10/10 mutation: мутационное тестирование"
+	@echo "==> 11/11 mutation: мутационное тестирование"
 	@$(MAKE) --no-print-directory mutation
 	@echo "Все проверки пройдены. Отчёты: $(REPORTS)/"
 
@@ -264,6 +271,112 @@ ci: ## Весь pipeline CI локально, в том же порядке
 	@$(MAKE) --no-print-directory container-check
 	@$(MAKE) --no-print-directory smoke
 	@$(MAKE) --no-print-directory image-scan
+
+# ------------------------------------------------- наблюдаемость (ЛР8)
+# Метрики, журналы, оповещения — docs/observability.md; что делать при
+# оповещении — docs/runbook.md. PROJECT — проект compose: warehouse-inventory
+# (локально), warehouse-stage / warehouse-prod (на серверах).
+PROJECT ?= warehouse-inventory
+# promtool и blackbox тех же версий, что работают в docker-compose.yml
+PROMETHEUS_IMAGE := $(shell grep -m1 -oE 'prom/prometheus:v[0-9.]+' docker-compose.yml)
+BLACKBOX_IMAGE := $(shell grep -m1 -oE 'prom/blackbox-exporter:v[0-9.]+' docker-compose.yml)
+PROMTOOL = docker run --rm -u $(DOCKER_USER) -v "$(CURDIR)/monitoring/prometheus:/etc/prometheus:ro" \
+	-w /etc/prometheus --entrypoint promtool $(PROMETHEUS_IMAGE)
+
+monitoring-lint: ## Мониторинг: конфигурация, правила оповещений и их unit-тесты, панели
+	$(BIN)/python scripts/check_monitoring.py
+	$(PROMTOOL) check config prometheus.yml
+	$(PROMTOOL) test rules $(addprefix tests/,$(notdir $(wildcard monitoring/prometheus/tests/*.yml)))
+	docker run --rm -u $(DOCKER_USER) -v "$(CURDIR)/monitoring/blackbox:/etc/blackbox:ro" \
+	    $(BLACKBOX_IMAGE) --config.file=/etc/blackbox/blackbox.yml --config.check
+
+status: ## Сводка: контейнеры, доступность, цели метрик, оповещения, метрики, ошибки
+	@PROJECT=$(PROJECT) ./scripts/obs.sh status
+
+alerts: ## Сработавшие оповещения
+	@PROJECT=$(PROJECT) ./scripts/obs.sh alerts
+
+metrics-query: ## Запрос к Prometheus: make metrics-query Q='rate(warehouse_http_requests_total[5m])'
+	@test -n "$(Q)" || { echo "Укажите запрос: Q='<PromQL>'" >&2; exit 1; }
+	@PROJECT=$(PROJECT) ./scripts/obs.sh query '$(Q)'
+
+logs-find: ## Поиск в журналах: [ID=] [LEVEL=] [EVENT=] [CODE=5] [TEXT=] [SINCE=1h] [S=app1,nginx] [N=]
+	@PROJECT=$(PROJECT) ./scripts/logs.sh $(if $(ID),-i '$(ID)') $(if $(LEVEL),-l '$(LEVEL)') \
+	    $(if $(EVENT),-e '$(EVENT)') $(if $(CODE),-c '$(CODE)') $(if $(TEXT),-q '$(TEXT)') \
+	    $(if $(SINCE),-t '$(SINCE)') $(if $(S),-s '$(S)') $(if $(N),-n '$(N)')
+
+logs-secrets: ## Нет ли паролей и секретов в журналах контейнеров: [SINCE=24h]
+	@PROJECT=$(PROJECT) ./scripts/logs.sh --secrets -t $(or $(SINCE),24h)
+
+release-snapshot: ## Состояние системы до/после выпуска: make release-snapshot NAME=before|after
+	@PROJECT=$(PROJECT) ./scripts/obs.sh snapshot $(NAME)
+
+grafana: ## Адрес Grafana (через Nginx) и вход
+	@echo "Grafana: http://127.0.0.1:$(HTTP_PORT)/grafana/  (admin / GRAFANA_ADMIN_PASSWORD из .env)"
+	@echo "Панель:  http://127.0.0.1:$(HTTP_PORT)/grafana/d/warehouse-overview"
+
+chaos: ## Учебный сбой для тренировки диагностики: make chaos SCENARIO=db-stop|...|recover
+	@PROJECT=$(PROJECT) ./scripts/chaos.sh $(SCENARIO) $(ARG)
+
+# ------------------------------------------- инфраструктура как код (ЛР7)
+# Ansible: infra/. Окружение — ENV=staging|production. Пароль vault и ключ
+# ansible — вне репозитория (переопределяются VAULT_PASS и ANSIBLE_KEY, в CI).
+ENV ?= staging
+INFRA_BIN := .venv/bin
+VAULT_PASS ?= $(HOME)/.config/warehouse/vault-$(ENV).pass
+ANSIBLE_KEY ?= $(HOME)/.ssh/warehouse_ansible_$(ENV)
+ANSIBLE_OPTS = -i inventories/$(ENV) --vault-id $(ENV)@$(VAULT_PASS) --private-key $(ANSIBLE_KEY) \
+	$(if $(TAG),-e warehouse_release_tag=$(TAG)) $(if $(RUNNER_TOKEN),-e github_runner_token=$(RUNNER_TOKEN))
+
+infra-setup: ## Ansible, ansible-lint и коллекции точных версий в infra/.venv
+	$(PY) -m venv infra/.venv
+	infra/.venv/bin/pip install --quiet --upgrade pip
+	infra/.venv/bin/pip install --quiet -r infra/requirements.txt
+	cd infra && $(INFRA_BIN)/ansible-galaxy collection install -r requirements.yml -p collections
+
+infra-lint: ## Проверка инфраструктурного кода: ansible-lint, syntax-check, требования проекта
+	cd infra && $(INFRA_BIN)/ansible-lint
+	cd infra && for env in staging production; do \
+	$(INFRA_BIN)/ansible-playbook -i inventories/$$env --syntax-check bootstrap.yml site.yml verify.yml; \
+	done
+	$(PY) scripts/check_infra.py
+
+infra-known-hosts: ## Ключи SSH узлов окружения в infra/known_hosts: make infra-known-hosts ENV=...
+	./infra/scripts/known_hosts.sh $(ENV)
+
+infra-keygen: ## Ключ ansible окружения и ключ администратора в параметры: make infra-keygen ENV=...
+	./infra/scripts/keygen.sh $(ENV)
+
+vault-init: ## Создать зашифрованные секреты окружения: make vault-init ENV=...
+	cd infra && VAULT_PASS=$(VAULT_PASS) ./scripts/vault_init.sh $(ENV)
+
+vault-upgrade: ## Дополнить созданный ранее vault новыми секретами (пароль Grafana, ЛР8)
+	cd infra && VAULT_PASS=$(VAULT_PASS) ./scripts/vault_init.sh $(ENV) --upgrade
+
+vault-edit: ## Изменить секреты окружения (расшифровка только в редакторе)
+	cd infra && $(INFRA_BIN)/ansible-vault edit --vault-id $(ENV)@$(VAULT_PASS) \
+	inventories/$(ENV)/group_vars/$(ENV)/vault.yml
+
+vault-view: ## Показать секреты окружения
+	cd infra && $(INFRA_BIN)/ansible-vault view --vault-id $(ENV)@$(VAULT_PASS) \
+	inventories/$(ENV)/group_vars/$(ENV)/vault.yml
+
+infra-bootstrap: ## Чистая машина: вход пользователем установщика, su: make infra-bootstrap ENV=... USER_NAME=... [USER_KEY=...]
+	@test -n "$(USER_NAME)" || { echo "Укажите USER_NAME — пользователя, созданного установщиком Debian" >&2; exit 1; }
+	cd infra && $(INFRA_BIN)/ansible-playbook $(ANSIBLE_OPTS) -e ansible_user=$(USER_NAME) \
+	$(if $(USER_KEY),--private-key $(USER_KEY),--ask-pass) --ask-become-pass bootstrap.yml
+
+infra-check: ## Что изменит Ansible, без изменений (--check --diff): дрейф конфигурации
+	cd infra && $(INFRA_BIN)/ansible-playbook $(ANSIBLE_OPTS) --check --diff site.yml
+
+infra-apply: ## Привести окружение к требуемому состоянию и проверить: make infra-apply ENV=... [TAG=...]
+	cd infra && $(INFRA_BIN)/ansible-playbook $(ANSIBLE_OPTS) --diff site.yml
+
+infra-idempotence: ## Повторный запуск без изменений (changed=0)
+	cd infra && ./scripts/idempotence.sh $(ANSIBLE_OPTS)
+
+infra-verify: ## Только проверка окружения: приложение, версия, порты, права
+	cd infra && $(INFRA_BIN)/ansible-playbook $(ANSIBLE_OPTS) verify.yml
 
 clean: ## Удалить временные файлы и отчёты
 	rm -rf .pytest_cache .ruff_cache .coverage $(REPORTS)

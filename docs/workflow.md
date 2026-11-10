@@ -68,6 +68,7 @@
 ## 5. Критические файлы
 
 Список — в [`.github/CODEOWNERS`](../.github/CODEOWNERS): тесты, `Makefile`,
+инфраструктурный код (`infra/`: роли, шаблоны, параметры и секреты окружений),
 настройки анализаторов (`pyproject.toml`, `.gitleaks.toml`, `security/`),
 `scripts/`, pipeline (`.github/`), зависимости, Dockerfile и compose, миграции,
 `app/config.py`, `app/security.py`, `.env.example`, `.gitignore`.

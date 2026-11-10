@@ -1,0 +1,24 @@
+---
+- name: Убрать файлы настроек SSH, созданные вручную до Ansible
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ ssh_obsolete_dropins }}"
+  notify: Перезапустить SSH
+
+- name: Настроить SSH из шаблона (только ключи, без root, разрешённые пользователи)
+  ansible.builtin.template:
+    src: sshd-warehouse.conf.j2
+    # 00-…: файл читается первым, а в sshd действует первое значение параметра
+    dest: /etc/ssh/sshd_config.d/00-warehouse.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Перезапустить SSH
+
+- name: Запустить SSH и включить при загрузке
+  ansible.builtin.service:
+    name: ssh
+    state: started
+    enabled: true

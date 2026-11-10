@@ -29,8 +29,8 @@ fi
 # 3. В шаблонах конфигурации вместо паролей — только заглушки
 for template in .env.example deploy/app/warehouse.env.example deploy/stage/stage.env.example; do
     [ -f "$template" ] || continue
-    leaked=$(grep -nE '^(AUTH_PASSWORD|POSTGRES_PASSWORD)=' "$template" \
-        | grep -vE '=(CHANGE_ME|warehouse|warehouse123)$' || true)
+    leaked=$(grep -nE '^(AUTH_PASSWORD|POSTGRES_PASSWORD|GRAFANA_ADMIN_PASSWORD)=' "$template" \
+        | grep -vE '=(CHANGE_ME|warehouse|warehouse123|grafana123)$' || true)
     if [ -n "$leaked" ]; then
         echo "ОШИБКА: в шаблоне $template похоже на реальный пароль:"
         echo "$leaked" | sed 's/^/  /'

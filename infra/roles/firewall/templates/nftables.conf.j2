@@ -1,0 +1,27 @@
+#!/usr/sbin/nft -f
+# {{ ansible_managed }}
+#
+# Входящие соединения на эту машину: только перечисленные ниже, остальное — drop.
+# Своя таблица inet warehouse: правила Docker (таблицы ip filter/nat) не
+# затрагиваются, поэтому «flush ruleset» здесь нет.
+# Опубликованные порты контейнеров проходят цепочку forward (правила Docker),
+# адрес публикации ограничен HTTP_BIND в настройках окружения.
+# Изменения вручную будут отменены следующим запуском Ansible.
+
+table inet warehouse
+delete table inet warehouse
+
+table inet warehouse {
+    chain input {
+        type filter hook input priority filter; policy drop;
+
+        iif "lo" accept
+        ct state established,related accept
+        ct state invalid drop
+        meta l4proto { icmp, ipv6-icmp } accept
+
+{% for rule in firewall_allow %}
+        ip saddr {{ rule.source }} tcp dport {{ rule.port }} accept comment "{{ rule.comment }}"
+{% endfor %}
+    }
+}

@@ -17,7 +17,9 @@
 #  11. сохранность данных после пересоздания контейнеров и обновления образа;
 #  12. миграции в контейнерной среде;
 #  13. резервная копия и восстановление в новый том;
-#  14. ограничение частоты запросов.
+#  14. ограничение частоты запросов;
+#  15. наблюдаемость (ЛР8): метрики собираются, правила загружены, Grafana
+#      через nginx, журналы — JSON с обязательными полями, секретов в журналах нет.
 #
 # Проверка пересоздаёт контейнеры (данные в томе сохраняются) и в конце
 # возвращает окружение в рабочее состояние.
@@ -41,7 +43,7 @@ AUTH="${AUTH_USERNAME:-admin}:${AUTH_PASSWORD:?задайте AUTH_PASSWORD в .
 VERSION="${APP_VERSION:-0.8.0}"
 IMAGE="warehouse-inventory:${VERSION}"
 PROJECT="warehouse-inventory"
-TOTAL=14
+TOTAL=15
 CHECKS=0
 TEST_UNIT_ID=""
 UPDATE_TAG="${VERSION}-update-check"
@@ -94,6 +96,7 @@ on_exit() {
 trap on_exit EXIT
 
 command -v curl > /dev/null || fail "нужна утилита curl: sudo apt install curl"
+command -v jq > /dev/null || fail "нужна утилита jq: sudo apt install jq"
 docker info > /dev/null 2>&1 || fail "Docker недоступен: запустите Docker Desktop / службу docker"
 echo "Docker $(docker version -f '{{.Server.Version}}'), $(docker compose version)"
 
@@ -126,7 +129,8 @@ ok "healthcheck: db, app1, app2, nginx — healthy"
 
 # ------------------------------------------------------------------------- 4
 step 4 "процессы не от root, ФС только на чтение, ограничения ресурсов"
-for svc in db app1 app2 nginx; do
+# cAdvisor — обоснованное исключение (docs/observability.md): читает cgroups хоста
+for svc in db app1 app2 nginx prometheus grafana blackbox node-exporter; do
     # первый столбец docker top — владелец процесса (имя берётся из /etc/passwd
     # хоста, поэтому uid 101 или 70 может отображаться под другим именем)
     users="$(docker top "$(cid "$svc")" | awk 'NR > 1 {print $1}' | sort -u | xargs)"
@@ -136,14 +140,14 @@ for svc in db app1 app2 nginx; do
     info "$svc: владельцы процессов — $users (пользователь запуска: $(docker inspect -f \
         '{{.Config.User}}' "$(cid "$svc")" | sed 's/^$/root, entrypoint понижает права до postgres/'))"
 done
-ok "ни один процесс в контейнерах не работает от root"
+ok "ни один процесс в контейнерах не работает от root (кроме cAdvisor — исключение)"
 [ "$(docker compose exec -T app1 id -u)" = "10001" ] || fail "app1 запущен не от uid 10001"
 if docker compose exec -T app1 sh -c 'touch /app/probe' 2> /dev/null; then
     fail "в app1 корневая ФС доступна на запись"
 fi
 docker compose exec -T app1 sh -c 'touch /tmp/probe && rm /tmp/probe' || fail "/tmp недоступен"
 ok "app1: корневая ФС только на чтение, временные файлы — в tmpfs /tmp"
-for svc in db app1 app2 nginx; do
+for svc in db app1 app2 nginx prometheus grafana blackbox node-exporter cadvisor; do
     read -r mem cpu pids < <(docker inspect -f \
         '{{.HostConfig.Memory}} {{.HostConfig.NanoCpus}} {{.HostConfig.PidsLimit}}' "$(cid "$svc")")
     [ "$mem" -gt 0 ] && [ "$cpu" -gt 0 ] && [ "${pids:-0}" -gt 0 ] || fail "$svc: нет ограничений"
@@ -157,17 +161,17 @@ docker stats --no-stream --format '{{.Name}}: {{.MemUsage}}, CPU {{.CPUPerc}}' \
 
 # ------------------------------------------------------------------------- 5
 step 5 "сети и порты"
-for svc in db app1 app2; do
+for svc in db app1 app2 prometheus grafana blackbox node-exporter cadvisor; do
     published="$(docker port "$(cid "$svc")" 2> /dev/null || true)"
     [ -z "$published" ] || fail "$svc публикует порт: $published"
 done
-ok "у db, app1, app2 опубликованных портов нет"
+ok "у db, app1, app2 и сервисов мониторинга опубликованных портов нет"
 info "nginx: $(docker port "$(cid nginx)" | xargs)"
-for net in app_net db_net; do
+for net in app_net db_net monitoring; do
     [ "$(docker network inspect -f '{{.Internal}}' "${PROJECT}_${net}")" = "true" ] \
         || fail "сеть $net не внутренняя"
 done
-ok "сети app_net и db_net внутренние (internal: true)"
+ok "сети app_net, db_net и monitoring внутренние (internal: true)"
 if docker compose exec -T app1 python -c \
     "import socket; socket.create_connection(('1.1.1.1', 53), timeout=2)" 2> /dev/null; then
     fail "из app1 доступна внешняя сеть"
@@ -328,6 +332,54 @@ info "80 одновременных запросов: $codes"
 [[ "$codes" == *" 200"* ]] || fail "все запросы отклонены"
 ok "сверх лимита nginx отвечает 429, остальные запросы обслуживаются"
 sleep 2
+
+# ------------------------------------------------------------------------ 15
+step 15 "наблюдаемость: метрики, оповещения, Grafana, журналы"
+prom_api() { docker compose exec -T prometheus wget -qO- "http://127.0.0.1:9090/api/v1/$1"; }
+code="$(curl -s -o /dev/null -w '%{http_code}' "$BASE/metrics")"
+[ "$code" = "404" ] || fail "GET /metrics через nginx: $code (метрики не должны быть доступны снаружи)"
+ok "метрики приложения через nginx недоступны (404), их собирает Prometheus во внутренней сети"
+for _ in $(seq 1 30); do
+    down="$(prom_api 'targets?state=active' | jq -r '.data.activeTargets[]
+        | select(.health != "up") | .scrapeUrl' || echo prometheus)"
+    [ -z "$down" ] && break
+    sleep 3
+done
+[ -z "$down" ] || fail "цели сбора метрик недоступны: $(echo "$down" | xargs)"
+targets="$(prom_api 'targets?state=active' | jq -r '[.data.activeTargets[].labels.job] | group_by(.)
+    | map("\(.[0]) \(length)") | join(", ")')"
+ok "Prometheus собирает метрики, все цели up: $targets"
+rules="$(prom_api rules | jq '[.data.groups[].rules[] | select(.type == "alerting")] | length')"
+expected="$(grep -c '^ *- alert:' monitoring/prometheus/rules/*.yml | awk -F: '{s += $NF} END {print s}')"
+[ "$rules" = "$expected" ] || fail "загружено правил оповещений: $rules, в репозитории: $expected"
+ok "загружены все правила оповещений ($rules)"
+query="$(jq -rn --arg q 'sum by (service) (warehouse_database_up)' '$q | @uri')"
+db_up="$(prom_api "query?query=$query" | jq -r '[.data.result[] | "\(.metric.service)=\(.value[1])"] | join(" ")')"
+[[ "$db_up" == *"app1=1"* && "$db_up" == *"app2=1"* ]] || fail "warehouse_database_up: $db_up"
+ok "метрики приложения поступают: warehouse_database_up $db_up"
+for _ in $(seq 1 20); do
+    health="$(curl -s "$BASE/grafana/api/health" | jq -r '.database // empty' 2> /dev/null || true)"
+    [ "$health" = ok ] && break
+    sleep 3
+done
+[ "$health" = ok ] || fail "Grafana через nginx не отвечает (/grafana/api/health)"
+code="$(curl -s -o /dev/null -w '%{http_code}' -u "admin:${GRAFANA_ADMIN_PASSWORD}" \
+    "$BASE/grafana/api/dashboards/uid/warehouse-overview")"
+[ "$code" = "200" ] || fail "панель warehouse-overview не загружена в Grafana: $code"
+code="$(curl -s -o /dev/null -w '%{http_code}' "$BASE/grafana/api/dashboards/uid/warehouse-overview")"
+[ "$code" = "401" ] || fail "панель Grafana доступна без входа: $code"
+ok "Grafana через nginx: панель загружена из репозитория, без входа — 401"
+request_id="$(curl -s -D - -o /dev/null "$BASE/api/v1/units" | tr -d '\r' \
+    | awk -F': ' 'tolower($1) == "x-request-id" {print $2}')"
+[ -n "$request_id" ] || fail "в ответе нет X-Request-ID"
+sleep 1
+trace="$(./scripts/logs.sh -i "$request_id" -t 5m --json | jq -r .service | sort -u | xargs)"
+[[ "$trace" =~ ^app[12]\ nginx$ ]] || fail "запрос $request_id не найден в журналах nginx и приложения: $trace"
+ok "запрос $request_id прослеживается по журналам: $trace"
+./scripts/logs.sh --check -t 30m | sed 's/^/    /'
+ok "журналы приложения — JSON с обязательными полями"
+./scripts/logs.sh --secrets -t 30m | sed 's/^/    /'
+ok "в журналах нет открытых паролей и секретов"
 
 echo
 echo "container-check: все проверки пройдены ($CHECKS)."

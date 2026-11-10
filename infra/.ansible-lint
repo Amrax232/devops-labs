@@ -1,0 +1,10 @@
+---
+# ansible-lint (make infra-lint): строжайший стандартный профиль.
+# Без исключений: правило отключается только изменением этого файла
+# (критический — .github/CODEOWNERS).
+profile: production
+exclude_paths:
+  - collections/
+  - .venv/
+  - inventories/*/group_vars/*/vault.yml       # зашифрованы ansible-vault
+  - inventories/*/group_vars/*/vault.yml.example

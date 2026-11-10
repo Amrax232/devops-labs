@@ -1,0 +1,37 @@
+---
+# Параметры окружения staging. Секреты — vault.yml (зашифрован ansible-vault).
+env_name: staging
+
+# Открытый ключ служебной учётной записи ansible этого окружения
+# (закрытый — у управляющей машины и в секрете CI). Заполняет infra/scripts/keygen.sh.
+users_ansible_public_key: "CHANGE_ME_ANSIBLE_PUBLIC_KEY"
+users_admin_password: "{{ vault_users_admin_password }}"
+users_admin_password_salt: "{{ vault_users_admin_password_salt }}"
+
+# Приложение: каталоги и имена совместимы с CD из ЛР6 (deploy/stage/deploy.sh)
+warehouse_dir: /opt/warehouse-stage
+warehouse_project: warehouse-stage
+warehouse_env_file: "{{ warehouse_dir }}/env/stage.env"
+warehouse_registry_image: ghcr.io/CHANGE_ME/warehouse-inventory
+warehouse_http_port: 8080
+warehouse_log_level: INFO
+# Версией staging управляет CD (.github/workflows/deploy.yml); Ansible
+# разворачивает выпуск, только если машина чистая: make infra-apply TAG=<тег>
+warehouse_release_tag: ""
+warehouse_auth_password: "{{ vault_warehouse_auth_password }}"
+warehouse_postgres_password: "{{ vault_warehouse_postgres_password }}"
+warehouse_grafana_admin_password: "{{ vault_warehouse_grafana_admin_password | default('') }}"
+warehouse_registry_token: "{{ vault_warehouse_registry_token | default('') }}"
+
+# Входящие соединения (роль firewall): только эти, только из лабораторной сети
+firewall_allow:
+  - {port: "{{ ssh_port }}", source: "{{ lab_network }}", comment: "SSH"}
+  - {port: "{{ warehouse_http_port }}", source: "{{ lab_network }}", comment: "HTTP (Nginx)"}
+
+# На staging работает runner: CD и применение инфраструктуры
+github_runner_enabled: true
+github_runner_repo_url: https://github.com/CHANGE_ME/warehouse-inventory
+github_runner_labels: staging
+
+# Проверка после настройки: в staging — полный пользовательский сценарий
+verify_scenario: true

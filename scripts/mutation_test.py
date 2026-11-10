@@ -187,6 +187,12 @@ def prepare_workspace(tests_dir: Path) -> Path:
     work = Path(tempfile.mkdtemp(prefix="mutation-"))
     ignore = shutil.ignore_patterns("__pycache__", "*.pyc")
     shutil.copytree(ROOT / "app", work / "app", ignore=ignore)
+    if (ROOT / "scripts").exists():
+        shutil.copytree(ROOT / "scripts", work / "scripts", ignore=ignore)
+    if (ROOT / "monitoring").exists():
+        shutil.copytree(ROOT / "monitoring", work / "monitoring", ignore=ignore)
+    if (ROOT / "docs").exists():
+        shutil.copytree(ROOT / "docs", work / "docs", ignore=ignore)
     (work / "tests").mkdir()
     for name in ("__init__.py", "conftest.py"):
         if (ROOT / "tests" / name).exists():

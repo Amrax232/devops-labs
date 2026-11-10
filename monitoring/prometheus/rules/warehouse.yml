@@ -1,0 +1,138 @@
+# Правила обнаружения проблем «Складского учёта» (ЛР8).
+#
+# Каждое правило проверено unit-тестом (monitoring/prometheus/tests/,
+# make monitoring-lint → promtool test rules). В аннотациях — что проверить и
+# раздел инструкции docs/runbook.md.
+groups:
+  - name: warehouse-availability
+    rules:
+      - alert: WarehouseUnavailable
+        expr: probe_success{job="blackbox-http", target="http://nginx:8080/healthz"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Сервис недоступен для пользователей (через Nginx)"
+          description: "Проверка {{ $labels.target }} не проходит больше минуты."
+          runbook: "docs/runbook.md#1-сервис-недоступен"
+
+      - alert: WarehouseNotReady
+        expr: probe_success{job="blackbox-http", target=~".*/readyz"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Экземпляр не готов: {{ $labels.target }}"
+          description: "/readyz не отвечает 200 — нет связи с базой данных или экземпляр не запущен."
+          runbook: "docs/runbook.md#2-база-данных-недоступна"
+
+      - alert: WarehouseInstanceDown
+        expr: up{job="warehouse-app"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Экземпляр приложения {{ $labels.service }} не отвечает на сбор метрик"
+          description: "Второй экземпляр продолжает обслуживать запросы, но запаса уже нет."
+          runbook: "docs/runbook.md#4-экземпляр-перезапускается-или-остановлен"
+
+      - alert: DatabaseUnavailable
+        expr: max(warehouse_database_up) == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "База данных недоступна для приложения"
+          description: "Ни один экземпляр не может выполнить запрос к PostgreSQL."
+          runbook: "docs/runbook.md#2-база-данных-недоступна"
+
+  - name: warehouse-errors-latency
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(warehouse_http_requests_total{status=~"5.."}[5m]))
+            / sum(rate(warehouse_http_requests_total[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ошибки сервера: {{ $value | humanizePercentage }} запросов"
+          description: "Доля ответов 5xx выше 5% в течение 2 минут — вероятно, ошибка новой версии или зависимости."
+          runbook: "docs/runbook.md#6-ошибка-новой-версии"
+
+      - alert: SlowResponses
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(warehouse_http_request_duration_seconds_bucket[5m]))) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "95% запросов дольше {{ $value | humanizeDuration }}"
+          description: "Время ответа выше 1 с — нагрузка, нехватка ресурсов или медленная база."
+          runbook: "docs/runbook.md#5-нехватка-памяти-или-ресурсов"
+
+  - name: warehouse-resources
+    rules:
+      - alert: ContainerRestarted
+        expr: changes(container_start_time_seconds{name=~".+"}[10m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Контейнер {{ $labels.name }} перезапускался за последние 10 минут"
+          description: "Причина — в docker inspect (OOMKilled, ExitCode) и в журнале контейнера."
+          runbook: "docs/runbook.md#4-экземпляр-перезапускается-или-остановлен"
+
+      - alert: ContainerMemoryNearLimit
+        expr: |
+          container_memory_working_set_bytes{name=~".+"}
+            / (container_spec_memory_limit_bytes{name=~".+"} > 0) > 0.9
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.name }}: память {{ $value | humanizePercentage }} от лимита"
+          description: "При достижении лимита процесс будет убит (OOM) и контейнер перезапустится."
+          runbook: "docs/runbook.md#5-нехватка-памяти-или-ресурсов"
+
+      - alert: DiskSpaceLow
+        expr: |
+          node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"}
+            / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"} < 0.10
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Мало места на диске {{ $labels.mountpoint }}: свободно {{ $value | humanizePercentage }}"
+          description: "При заполнении диска PostgreSQL перестанет принимать записи, копии не создадутся."
+          runbook: "docs/runbook.md#3-нехватка-места-на-диске"
+
+  - name: warehouse-security-domain
+    rules:
+      - alert: SecretRedactedInLogs
+        expr: increase(warehouse_log_secrets_redacted_total[10m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "Код пытался записать секрет в журнал ({{ $labels.service }})"
+          description: "Секрет замаскирован, но в коде есть запись секрета в журнал — найти и исправить."
+          runbook: "docs/runbook.md#9-утечка-секрета-в-журнал"
+
+      - alert: AuthFailuresBurst
+        expr: sum(increase(warehouse_auth_failures_total[5m])) > 20
+        labels:
+          severity: warning
+        annotations:
+          summary: "Много отказов в доступе: {{ $value | humanize }} за 5 минут"
+          description: "Подбор пароля или клиент с устаревшими учётными данными."
+          runbook: "docs/runbook.md#7-нарушение-прав-доступа"
+
+      - alert: MaterialsBelowMinimum
+        expr: max(warehouse_materials_below_min) > 0
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "Материалов ниже минимального остатка: {{ $value }}"
+          description: "Предметное оповещение: нужна закупка (отчёт /api/v1/reports/stock?below_min=true)."
+          runbook: "docs/runbook.md#10-предметные-оповещения"

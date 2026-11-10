@@ -41,3 +41,8 @@
 
 # Развёртывание в тестовое окружение (ЛР6)
 /deploy/                      @Amrax232
+
+# Наблюдаемость (ЛР8): оповещения, метрики, маскирование секретов
+/monitoring/                  @Amrax232
+/app/logging_setup.py         @Amrax232
+/app/metrics.py               @Amrax232

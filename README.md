@@ -16,6 +16,7 @@
 - [Стек](#стек)
 - [Быстрый старт](#быстрый-старт)
 - [Команды проверки](#команды-проверки)
+- [Наблюдаемость](#наблюдаемость)
 - [Структура репозитория](#структура-репозитория)
 - [API](#api)
 - [Правила предметной области](#правила-предметной-области)
@@ -107,10 +108,15 @@ make run             # приложение на http://localhost:8000 с авт
 | `make container-check` | полная проверка контейнерной среды (обязательна при её изменении) |
 | `make container-lint` | статические запреты: `latest`, root, секреты, healthcheck, порты |
 | `make restore-new-volume` | восстановление резервной копии в новый пустой том со сверкой |
+| `make monitoring-lint` | правила оповещений с unit-тестами, панели, сбор метрик |
+| `make status` / `make alerts` | сводка состояния / сработавшие оповещения |
+| `make logs-find [ID=] [LEVEL=] [EVENT=] [CODE=]` / `make logs-secrets` | поиск в журналах JSON / секреты в журналах |
+| `make release-snapshot NAME=before\|after` | состояние системы до и после выпуска |
 
 `make verify` обязателен перед каждым merge request. Он выполняет по порядку:
 политику качества, проверку секретов (файлы и история git), линтер, SAST,
-проверку зависимостей, запреты для контейнеров, подготовку тестовой базы,
+проверку зависимостей, запреты для контейнеров, конфигурацию мониторинга,
+подготовку тестовой базы,
 все уровни тестов с порогом покрытия 80 % и мутационное тестирование с порогом
 80 %. Состав и назначение шагов — [`docs/quality-policy.md`](docs/quality-policy.md),
 стратегия тестирования — [`docs/testing.md`](docs/testing.md).
@@ -143,6 +149,55 @@ GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) запу
 
 ---
 
+## Инфраструктура как код
+
+Машины окружений `staging` и `production` настраиваются **только Ansible**
+(`infra/`):
+
+- пользователи, SSH, пакеты, Docker, каталоги и права, firewall (nftables);
+- настройки и запуск приложения;
+- runner.
+
+Параметры разделены на общие, параметры окружения, параметры узла и
+секреты (`ansible-vault`). Повторный запуск ничего не меняет, а ручные правки
+отменяет. После применения доступность приложения проверяется автоматически.
+
+```bash
+make infra-setup                      # Ansible в infra/.venv
+make infra-check ENV=staging          # что изменится (--check --diff)
+make infra-apply ENV=staging          # привести к требуемому состоянию и проверить
+make infra-idempotence ENV=staging    # повторный запуск: changed=0
+```
+
+Подробности — [`docs/infra.md`](docs/infra.md).
+
+---
+
+## Наблюдаемость
+
+- **Журналы** — одна строка JSON на событие в `docker logs`: время, уровень,
+  тип события, адрес операции, результат, `request_id` (общий для Nginx и
+  приложения); секреты маскируются.
+- **Метрики** — запросы, ошибки, время ответа, состояние, предметные
+  (материалы ниже минимума, складские операции); хост (node-exporter),
+  контейнеры (cAdvisor), доступность через Nginx (blackbox) → Prometheus.
+- **Панель** Grafana — `http://127.0.0.1:8080/grafana/` (вход `admin` /
+  `GRAFANA_ADMIN_PASSWORD`).
+- **Оповещения** — 12 правил с unit-тестами и ссылкой на раздел
+  [инструкции по диагностике](docs/runbook.md).
+
+```bash
+make status                         # всё о состоянии системы на одном экране
+make logs-find LEVEL=ERROR SINCE=30m
+make logs-find ID=<X-Request-ID из ответа>
+make alerts
+```
+
+Подробности — [`docs/observability.md`](docs/observability.md), что делать
+при сбое — [`docs/runbook.md`](docs/runbook.md).
+
+---
+
 ## Структура репозитория
 
 ```
@@ -163,7 +218,8 @@ GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) запу
 │   ├── api/                # HTTP API на временной SQLite-базе
 │   └── integration/        # PostgreSQL: миграции, ограничения, конкурентность
 ├── scripts/                # backup/restore, мутации, политика качества
-├── deploy/                 # развёртывание на Linux-серверах (ЛР2)
+├── deploy/                 # развёртывание на Linux-серверах (ЛР2), staging (ЛР6)
+├── infra/                  # Ansible: окружения staging и production (ЛР7)
 ├── docs/                   # ТЗ, API, схема БД, регламент
 ├── nginx/nginx.conf        # балансировщик перед app1 и app2
 ├── Dockerfile              # образ приложения
@@ -329,6 +385,12 @@ sudo bash deploy/app/30-firewall-app.sh     # сетевые ограничен�
 | [`docs/lab5-checklist.md`](docs/lab5-checklist.md) | что показывать на защите лабораторной работы №5 |
 | [`docs/cd.md`](docs/cd.md) | непрерывная поставка: тестовое окружение, выпуск, проверка, возврат версии |
 | [`docs/lab6-checklist.md`](docs/lab6-checklist.md) | что показывать на защите лабораторной работы №6 |
+| [`docs/infra.md`](docs/infra.md) | инфраструктура как код: Ansible, окружения, секреты, идемпотентность, требования |
+| [`docs/lab7-checklist.md`](docs/lab7-checklist.md) | что показывать на защите лабораторной работы №7 |
+| [`docs/observability.md`](docs/observability.md) | журналы, метрики, панель, оповещения, барьеры |
+| [`docs/runbook.md`](docs/runbook.md) | диагностика и восстановление по каждому оповещению и сбою |
+| [`docs/incidents/TEMPLATE.md`](docs/incidents/TEMPLATE.md) | шаблон разбора инцидента с улучшением процесса |
+| [`docs/lab8-checklist.md`](docs/lab8-checklist.md) | что показывать на защите лабораторной работы №8 |
 | [`deploy/README.md`](deploy/README.md) | развёртывание на двух Linux-машинах |
 | [`deploy/security.md`](deploy/security.md) | правила безопасности и сетевых ограничений |
 | [`deploy/checklist-lab2.md`](deploy/checklist-lab2.md) | что показывать на защите лабораторной работы №2 |
