@@ -77,6 +77,7 @@ format: ## Привести код к единому формату
 lint: ## Линтер: формат и статический анализ (ruff), без исправлений
 	$(BIN)/ruff format --check .
 	$(BIN)/ruff check .
+	$(MAKE) monitoring-lint
 
 sast: ## Статический анализ безопасности (bandit), отчёт в reports/bandit.json
 	@mkdir -p $(REPORTS)
@@ -336,7 +337,7 @@ infra-setup: ## Ansible, ansible-lint и коллекции точных вер�
 infra-lint: ## Проверка инфраструктурного кода: ansible-lint, syntax-check, требования проекта
 	cd infra && $(INFRA_BIN)/ansible-lint
 	cd infra && for env in staging production; do \
-        $(INFRA_BIN)/ansible-playbook -i inventories/$$env --syntax-check bootstrap.yml site.yml verify.yml; \
+	$(INFRA_BIN)/ansible-playbook -i inventories/$$env --syntax-check bootstrap.yml site.yml verify.yml; \
 	done
 	$(PY) scripts/check_infra.py
 
@@ -354,16 +355,16 @@ vault-upgrade: ## Дополнить созданный ранее vault нов�
 
 vault-edit: ## Изменить секреты окружения (расшифровка только в редакторе)
 	cd infra && $(INFRA_BIN)/ansible-vault edit --vault-id $(ENV)@$(VAULT_PASS) \
-        inventories/$(ENV)/group_vars/$(ENV)/vault.yml
+	inventories/$(ENV)/group_vars/$(ENV)/vault.yml
 
 vault-view: ## Показать секреты окружения
 	cd infra && $(INFRA_BIN)/ansible-vault view --vault-id $(ENV)@$(VAULT_PASS) \
-        inventories/$(ENV)/group_vars/$(ENV)/vault.yml
+	inventories/$(ENV)/group_vars/$(ENV)/vault.yml
 
 infra-bootstrap: ## Чистая машина: вход пользователем установщика, su: make infra-bootstrap ENV=... USER_NAME=... [USER_KEY=...]
 	@test -n "$(USER_NAME)" || { echo "Укажите USER_NAME — пользователя, созданного установщиком Debian" >&2; exit 1; }
 	cd infra && $(INFRA_BIN)/ansible-playbook $(ANSIBLE_OPTS) -e ansible_user=$(USER_NAME) \
-        $(if $(USER_KEY),--private-key $(USER_KEY),--ask-pass) --ask-become-pass bootstrap.yml
+	$(if $(USER_KEY),--private-key $(USER_KEY),--ask-pass) --ask-become-pass bootstrap.yml
 
 infra-check: ## Что изменит Ansible, без изменений (--check --diff): дрейф конфигурации
 	cd infra && $(INFRA_BIN)/ansible-playbook $(ANSIBLE_OPTS) --check --diff site.yml

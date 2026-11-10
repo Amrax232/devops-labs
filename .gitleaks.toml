@@ -17,3 +17,4 @@ regexes = [
     '''container-lint-placeholder''',
     '''CHANGE_ME''',
 ]
+paths = ['''app/demo_settings.py''']

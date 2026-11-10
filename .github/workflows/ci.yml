@@ -53,6 +53,8 @@ jobs:
         run: make lint
       - name: make container-lint — запреты для образа и compose
         run: make container-lint
+      - name: make monitoring-lint — проверки мониторинга
+        run: make monitoring-lint
 
   # ------------------------------------------------------------------ 2
   test:
