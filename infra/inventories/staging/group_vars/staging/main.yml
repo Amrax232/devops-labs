@@ -4,7 +4,7 @@ env_name: staging
 
 # Открытый ключ служебной учётной записи ansible этого окружения
 # (закрытый — у управляющей машины и в секрете CI). Заполняет infra/scripts/keygen.sh.
-users_ansible_public_key: "CHANGE_ME_ANSIBLE_PUBLIC_KEY"
+users_ansible_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICAyztn03BRPI8hn5pQQkA/bQ0KXznqvIeJUiSLWWunb ansible@warehouse-staging"
 users_admin_password: "{{ vault_users_admin_password }}"
 users_admin_password_salt: "{{ vault_users_admin_password_salt }}"
 
@@ -12,7 +12,7 @@ users_admin_password_salt: "{{ vault_users_admin_password_salt }}"
 warehouse_dir: /opt/warehouse-stage
 warehouse_project: warehouse-stage
 warehouse_env_file: "{{ warehouse_dir }}/env/stage.env"
-warehouse_registry_image: ghcr.io/CHANGE_ME/warehouse-inventory
+warehouse_registry_image: ghcr.io/amrax232/warehouse-inventory
 warehouse_http_port: 8080
 warehouse_log_level: INFO
 # Версией staging управляет CD (.github/workflows/deploy.yml); Ansible
@@ -30,7 +30,7 @@ firewall_allow:
 
 # На staging работает runner: CD и применение инфраструктуры
 github_runner_enabled: true
-github_runner_repo_url: https://github.com/CHANGE_ME/warehouse-inventory
+github_runner_repo_url: https://github.com/Amrax232/devops-labs
 github_runner_labels: staging
 
 # Проверка после настройки: в staging — полный пользовательский сценарий

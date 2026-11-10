@@ -2,14 +2,14 @@
 # Параметры окружения production. Секреты — vault.yml (свои, не как в staging).
 env_name: production
 
-users_ansible_public_key: "CHANGE_ME_ANSIBLE_PUBLIC_KEY"
+users_ansible_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMpePeAdEC7cp9nmxESa8DRPITQn59+5RPtwOvwDwYcO ansible@warehouse-production"
 users_admin_password: "{{ vault_users_admin_password }}"
 users_admin_password_salt: "{{ vault_users_admin_password_salt }}"
 
 warehouse_dir: /opt/warehouse-prod
 warehouse_project: warehouse-prod
 warehouse_env_file: "{{ warehouse_dir }}/env/prod.env"
-warehouse_registry_image: ghcr.io/CHANGE_ME/warehouse-inventory
+warehouse_registry_image: ghcr.io/amrax232/warehouse-inventory
 warehouse_http_port: 80
 warehouse_log_level: WARNING
 # Версия production задаётся явно и меняется через merge request:
