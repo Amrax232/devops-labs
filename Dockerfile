@@ -29,6 +29,8 @@ RUN pip install -r requirements.txt -c requirements.lock
 
 # ------------------------------------------------------------------ runtime
 FROM ${PYTHON_IMAGE} AS runtime
+ARG APP_REVISION
+ENV APP_REVISION=$APP_REVISION
 
 ARG APP_VERSION=0.8.0
 # коммит и репозиторий, из которых собран образ (передаёт CI)

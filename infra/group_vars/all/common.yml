@@ -37,7 +37,7 @@ common_absent_packages:
 users_admins:
   - name: deployer
     public_keys:
-      - "CHANGE_ME_ADMIN_PUBLIC_KEY"
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP2VrMsLh1UlAyBL/MIskpMAO5H1ivKspKFyrt6hVuTo root@WIN-Q62MSSDLBKP"
 users_deploy_name: deploy        # CD и runner: без sudo, без SSH, только группа docker
 users_ansible_name: ansible      # Ansible: вход по ключу из лабораторной сети, sudo без пароля
 
@@ -56,7 +56,7 @@ docker_log_max_size: 10m
 docker_log_max_file: 3
 
 # --- приложение (роль warehouse)
-warehouse_repo_url: https://github.com/CHANGE_ME/warehouse-inventory.git
+warehouse_repo_url: https://github.com/Amrax232/devops-labs.git
 warehouse_repo_version: main
 warehouse_auth_username: admin
 warehouse_postgres_user: warehouse
