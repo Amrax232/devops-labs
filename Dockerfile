@@ -10,7 +10,7 @@
 # Секретов в образе нет: логин, пароль и строка подключения к БД передаются
 # переменными окружения при запуске контейнера (docker-compose.yml, .env).
 
-ARG PYTHON_IMAGE=python:3.12.7-slim-bookworm
+ARG PYTHON_IMAGE=python:3.12-slim-bookworm
 
 # ------------------------------------------------------------------ builder
 FROM ${PYTHON_IMAGE} AS builder
