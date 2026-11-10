@@ -1,0 +1,6 @@
+---
+# Параметры узла warehouse-stage
+ansible_host: 192.168.56.20
+common_hostname: warehouse-stage
+# Nginx слушает только адрес лабораторной сети этой машины
+warehouse_http_bind: 192.168.56.20

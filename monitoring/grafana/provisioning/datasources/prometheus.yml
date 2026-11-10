@@ -1,0 +1,16 @@
+# Источник данных Grafana — Prometheus во внутренней сети monitoring.
+# Создаётся при запуске из этого файла; изменения в интерфейсе запрещены
+# (editable: false) — источник правды здесь, в репозитории.
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s
+      # правила оповещений Prometheus видны в Grafana: Alerting → Alert rules
+      manageAlerts: true

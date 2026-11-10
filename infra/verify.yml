@@ -1,0 +1,7 @@
+---
+# Только проверка (без изменений): make infra-verify ENV=<окружение>
+- name: Проверка доступности и безопасности машин «Складского учёта»
+  hosts: warehouse
+  become: true
+  roles:
+    - role: verify

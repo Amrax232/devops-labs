@@ -1,0 +1,11 @@
+---
+github_runner_enabled: false
+github_runner_version: 2.321.0
+github_runner_dir: /opt/actions-runner
+github_runner_user: "{{ users_deploy_name | default('deploy') }}"
+github_runner_name: "{{ inventory_hostname }}"
+github_runner_labels: staging
+github_runner_repo_url: ""
+# Токен регистрации действует 1 час и нужен только при первой регистрации:
+# make infra-apply ENV=staging RUNNER_TOKEN=<токен> (в vault не хранится)
+github_runner_token: ""

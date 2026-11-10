@@ -25,11 +25,12 @@ sed -e "s|^AUTH_PASSWORD=.*|AUTH_PASSWORD=${CI_AUTH_PASSWORD}|" \
     -e "s|://warehouse:warehouse@|://warehouse:${CI_POSTGRES_PASSWORD}@|" \
     -e "s|^APP_VERSION=.*|APP_VERSION=${APP_VERSION}|" \
     -e "s|^APP_ENV=.*|APP_ENV=ci|" \
+    -e "s|^GRAFANA_ADMIN_PASSWORD=.*|GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 16)|" \
     .env.example > .env
 chmod 600 .env
 
 grep -q "^APP_VERSION=${APP_VERSION}$" .env || { echo "APP_VERSION не записан в .env" >&2; exit 1; }
-if grep -q 'warehouse:warehouse@' .env; then
+if grep -Eq 'warehouse:warehouse@|^GRAFANA_ADMIN_PASSWORD=grafana123$' .env; then
     echo "В .env остался пароль из шаблона" >&2
     exit 1
 fi

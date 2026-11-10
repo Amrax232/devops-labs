@@ -1,0 +1,31 @@
+---
+# Параметры окружения production. Секреты — vault.yml (свои, не как в staging).
+env_name: production
+
+users_ansible_public_key: "CHANGE_ME_ANSIBLE_PUBLIC_KEY"
+users_admin_password: "{{ vault_users_admin_password }}"
+users_admin_password_salt: "{{ vault_users_admin_password_salt }}"
+
+warehouse_dir: /opt/warehouse-prod
+warehouse_project: warehouse-prod
+warehouse_env_file: "{{ warehouse_dir }}/env/prod.env"
+warehouse_registry_image: ghcr.io/CHANGE_ME/warehouse-inventory
+warehouse_http_port: 80
+warehouse_log_level: WARNING
+# Версия production задаётся явно и меняется через merge request:
+# тег образа, прошедший staging (полный SHA, sha-XXXXXXX или версия-XXXXXXX)
+warehouse_release_tag: ""
+warehouse_auth_password: "{{ vault_warehouse_auth_password }}"
+warehouse_postgres_password: "{{ vault_warehouse_postgres_password }}"
+warehouse_grafana_admin_password: "{{ vault_warehouse_grafana_admin_password | default('') }}"
+warehouse_registry_token: "{{ vault_warehouse_registry_token | default('') }}"
+
+firewall_allow:
+  - {port: "{{ ssh_port }}", source: "{{ lab_network }}", comment: "SSH"}
+  - {port: "{{ warehouse_http_port }}", source: "{{ lab_network }}", comment: "HTTP (Nginx)"}
+
+# В production runner нет: на машине работает только приложение
+github_runner_enabled: false
+
+# Проверка после настройки без создания тестовых данных: служебные адреса и версия
+verify_scenario: false

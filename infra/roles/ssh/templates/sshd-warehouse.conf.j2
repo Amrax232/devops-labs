@@ -1,0 +1,24 @@
+# {{ ansible_managed }}
+# Изменения вручную будут отменены следующим запуском Ansible (make infra-apply).
+
+Port {{ ssh_port }}
+
+# Вход root по сети запрещён: администрирование через sudo
+PermitRootLogin no
+
+# Только ключи: пароли отключены полностью
+PasswordAuthentication no
+PermitEmptyPasswords no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+
+# Кто вообще может подключаться (deploy — нет: только runner от его имени)
+AllowUsers {{ ssh_allow_users | join(' ') }}
+
+X11Forwarding no
+AllowAgentForwarding no
+AllowTcpForwarding no
+MaxAuthTries {{ ssh_max_auth_tries }}
+LoginGraceTime 30
+ClientAliveInterval 300
+ClientAliveCountMax 2

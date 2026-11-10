@@ -1,0 +1,281 @@
+# Unit-тесты правил оповещений: make monitoring-lint (promtool test rules).
+# Для каждого правила — ряды метрик и момент, когда оповещение должно (или не
+# должно) сработать. Правило, которое «никогда не срабатывает», тест не пропустит.
+rule_files:
+  - ../rules/warehouse.yml
+
+evaluation_interval: 15s
+
+tests:
+  # --- сервис недоступен через Nginx больше минуты
+  - interval: 15s
+    input_series:
+      - series: 'probe_success{job="blackbox-http", target="http://nginx:8080/healthz"}'
+        values: "1 1 0 0 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 30s
+        alertname: WarehouseUnavailable
+        exp_alerts: []
+      - eval_time: 105s
+        alertname: WarehouseUnavailable
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: blackbox-http
+              target: http://nginx:8080/healthz
+            exp_annotations:
+              summary: "Сервис недоступен для пользователей (через Nginx)"
+              description: "Проверка http://nginx:8080/healthz не проходит больше минуты."
+              runbook: "docs/runbook.md#1-сервис-недоступен"
+
+  # --- экземпляр не готов (/readyz), второй работает
+  - interval: 15s
+    input_series:
+      - series: 'probe_success{job="blackbox-http", target="http://app1:8000/readyz"}'
+        values: "1 0 0 0 0 0 0 0"
+      - series: 'probe_success{job="blackbox-http", target="http://app2:8000/readyz"}'
+        values: "1 1 1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 105s
+        alertname: WarehouseNotReady
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: blackbox-http
+              target: http://app1:8000/readyz
+            exp_annotations:
+              summary: "Экземпляр не готов: http://app1:8000/readyz"
+              description: "/readyz не отвечает 200 — нет связи с базой данных или экземпляр не запущен."
+              runbook: "docs/runbook.md#2-база-данных-недоступна"
+
+  # --- экземпляр не отвечает на сбор метрик (остановлен)
+  - interval: 15s
+    input_series:
+      - series: 'up{job="warehouse-app", instance="app2:8000", service="app2"}'
+        values: "1 0 0 0 0 0 0 0"
+      - series: 'up{job="warehouse-app", instance="app1:8000", service="app1"}'
+        values: "1 1 1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 45s
+        alertname: WarehouseInstanceDown
+        exp_alerts: []
+      - eval_time: 105s
+        alertname: WarehouseInstanceDown
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: warehouse-app
+              instance: app2:8000
+              service: app2
+            exp_annotations:
+              summary: "Экземпляр приложения app2 не отвечает на сбор метрик"
+              description: "Второй экземпляр продолжает обслуживать запросы, но запаса уже нет."
+              runbook: "docs/runbook.md#4-экземпляр-перезапускается-или-остановлен"
+
+  # --- база недоступна: оба экземпляра сообщают database_up = 0
+  - interval: 15s
+    input_series:
+      - series: 'warehouse_database_up{job="warehouse-app", service="app1"}'
+        values: "1 0 0 0 0"
+      - series: 'warehouse_database_up{job="warehouse-app", service="app2"}'
+        values: "1 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 15s
+        alertname: DatabaseUnavailable
+        exp_alerts: []
+      - eval_time: 60s
+        alertname: DatabaseUnavailable
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "База данных недоступна для приложения"
+              description: "Ни один экземпляр не может выполнить запрос к PostgreSQL."
+              runbook: "docs/runbook.md#2-база-данных-недоступна"
+
+  # --- доля ошибок 5xx: 10 из 100 запросов в секунду
+  - interval: 1m
+    input_series:
+      - series: 'warehouse_http_requests_total{status="200", method="GET", endpoint="/api/v1/units"}'
+        values: "0+5400x10"
+      - series: 'warehouse_http_requests_total{status="500", method="GET", endpoint="/api/v1/units"}'
+        values: "0+600x10"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: HighErrorRate
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: HighErrorRate
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "Ошибки сервера: 10% запросов"
+              description: "Доля ответов 5xx выше 5% в течение 2 минут — вероятно, ошибка новой версии или зависимости."
+              runbook: "docs/runbook.md#6-ошибка-новой-версии"
+
+  # --- ошибки 4xx (неверный ввод) не считаются сбоем сервиса
+  - interval: 1m
+    input_series:
+      - series: 'warehouse_http_requests_total{status="200"}'
+        values: "0+60x10"
+      - series: 'warehouse_http_requests_total{status="422"}'
+        values: "0+600x10"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: HighErrorRate
+        exp_alerts: []
+
+  # --- медленные ответы: все запросы от 1 до 2.5 с
+  - interval: 1m
+    input_series:
+      - series: 'warehouse_http_request_duration_seconds_bucket{le="0.5", method="GET", endpoint="/api/v1/materials"}'
+        values: "0+0x20"
+      - series: 'warehouse_http_request_duration_seconds_bucket{le="1.0", method="GET", endpoint="/api/v1/materials"}'
+        values: "0+0x20"
+      - series: 'warehouse_http_request_duration_seconds_bucket{le="2.5", method="GET", endpoint="/api/v1/materials"}'
+        values: "0+60x20"
+      - series: 'warehouse_http_request_duration_seconds_bucket{le="+Inf", method="GET", endpoint="/api/v1/materials"}'
+        values: "0+60x20"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: SlowResponses
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: SlowResponses
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "95% запросов дольше 2.425s"
+              description: "Время ответа выше 1 с — нагрузка, нехватка ресурсов или медленная база."
+              runbook: "docs/runbook.md#5-нехватка-памяти-или-ресурсов"
+
+  # --- контейнер перезапустился (новое время старта)
+  - interval: 1m
+    input_series:
+      - series: 'container_start_time_seconds{name="warehouse-inventory-app1-1"}'
+        values: "100 100 100 400 400"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: ContainerRestarted
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: ContainerRestarted
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              name: warehouse-inventory-app1-1
+            exp_annotations:
+              summary: "Контейнер warehouse-inventory-app1-1 перезапускался за последние 10 минут"
+              description: "Причина — в docker inspect (OOMKilled, ExitCode) и в журнале контейнера."
+              runbook: "docs/runbook.md#4-экземпляр-перезапускается-или-остановлен"
+
+  # --- память у лимита (240 из 256 МиБ)
+  - interval: 1m
+    input_series:
+      - series: 'container_memory_working_set_bytes{name="warehouse-inventory-app1-1"}'
+        values: "251658240x5"
+      - series: 'container_spec_memory_limit_bytes{name="warehouse-inventory-app1-1"}'
+        values: "268435456x5"
+      - series: 'container_memory_working_set_bytes{name="warehouse-inventory-db-1"}'
+        values: "1000000x5"
+      - series: 'container_spec_memory_limit_bytes{name="warehouse-inventory-db-1"}'
+        values: "536870912x5"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: ContainerMemoryNearLimit
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              name: warehouse-inventory-app1-1
+            exp_annotations:
+              summary: "warehouse-inventory-app1-1: память 93.75% от лимита"
+              description: "При достижении лимита процесс будет убит (OOM) и контейнер перезапустится."
+              runbook: "docs/runbook.md#5-нехватка-памяти-или-ресурсов"
+
+  # --- мало места на диске (5% свободно)
+  - interval: 1m
+    input_series:
+      - series: 'node_filesystem_avail_bytes{mountpoint="/", fstype="ext4", device="/dev/sda1"}'
+        values: "5x3"
+      - series: 'node_filesystem_size_bytes{mountpoint="/", fstype="ext4", device="/dev/sda1"}'
+        values: "100x3"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: DiskSpaceLow
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              mountpoint: /
+              fstype: ext4
+              device: /dev/sda1
+            exp_annotations:
+              summary: "Мало места на диске /: свободно 5%"
+              description: "При заполнении диска PostgreSQL перестанет принимать записи, копии не создадутся."
+              runbook: "docs/runbook.md#3-нехватка-места-на-диске"
+
+  # --- секрет в журнале (замаскирован, но это ошибка в коде)
+  - interval: 1m
+    input_series:
+      - series: 'warehouse_log_secrets_redacted_total{service="app1"}'
+        values: "0 0 1 1"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: SecretRedactedInLogs
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: SecretRedactedInLogs
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              service: app1
+            exp_annotations:
+              summary: "Код пытался записать секрет в журнал (app1)"
+              description: "Секрет замаскирован, но в коде есть запись секрета в журнал — найти и исправить."
+              runbook: "docs/runbook.md#9-утечка-секрета-в-журнал"
+
+  # --- подбор пароля: 10 отказов в минуту; единичные отказы — не оповещение
+  - interval: 1m
+    input_series:
+      - series: 'warehouse_auth_failures_total{job="warehouse-app", service="app1"}'
+        values: "0+10x10"
+      - series: 'warehouse_auth_failures_total{job="warehouse-app", service="app2"}'
+        values: "0+0x10"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: AuthFailuresBurst
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Много отказов в доступе: 50 за 5 минут"
+              description: "Подбор пароля или клиент с устаревшими учётными данными."
+              runbook: "docs/runbook.md#7-нарушение-прав-доступа"
+  - interval: 1m
+    input_series:
+      - series: 'warehouse_auth_failures_total{job="warehouse-app", service="app1"}'
+        values: "0+1x10"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: AuthFailuresBurst
+        exp_alerts: []
+
+  # --- предметное: материалы ниже минимума дольше 15 минут
+  - interval: 5m
+    input_series:
+      - series: 'warehouse_materials_below_min{service="app1"}'
+        values: "2x6"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: MaterialsBelowMinimum
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: MaterialsBelowMinimum
+        exp_alerts:
+          - exp_labels:
+              severity: info
+            exp_annotations:
+              summary: "Материалов ниже минимального остатка: 2"
+              description: "Предметное оповещение: нужна закупка (отчёт /api/v1/reports/stock?below_min=true)."
+              runbook: "docs/runbook.md#10-предметные-оповещения"

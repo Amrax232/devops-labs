@@ -1,0 +1,4 @@
+---
+# Разрешённые входящие соединения: [{port, source, comment}]. Всё остальное — drop.
+firewall_allow: []
+firewall_snapshot: /var/lib/warehouse-firewall/expected.nft

@@ -5,3 +5,4 @@ alembic==1.14.0
 pydantic==2.10.4
 pydantic-settings==2.7.0
 psycopg2-binary==2.9.10
+prometheus-client==0.21.1

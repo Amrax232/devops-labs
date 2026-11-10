@@ -1,5 +1,6 @@
 """Поступления материалов на склад."""
 
+import logging
 from datetime import date
 
 from fastapi import APIRouter, Depends, Query, status
@@ -7,10 +8,12 @@ from sqlalchemy.orm import Session
 
 from app import services
 from app.db import get_db
+from app.metrics import STOCK_OPERATIONS
 from app.models import ReceiptStatus
 from app.schemas import ReceiptCreate, ReceiptItemCreate, ReceiptRead
 
 router = APIRouter(prefix="/api/v1/receipts", tags=["receipts"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("", response_model=list[ReceiptRead], summary="Список поступлений")
@@ -72,7 +75,14 @@ def delete_item(receipt_id: int, item_id: int, db: Session = Depends(get_db)) ->
     summary="Провести поступление (увеличить остатки)",
 )
 def post_receipt(receipt_id: int, db: Session = Depends(get_db)) -> ReceiptRead:
-    return services.post_receipt(db, receipt_id)
+    receipt = services.post_receipt(db, receipt_id)
+    STOCK_OPERATIONS.labels("receipt_posted").inc()
+    logger.info(
+        "Поступление %s проведено",
+        receipt.number,
+        extra={"event": "receipt_posted", "receipt_id": receipt.id},
+    )
+    return receipt
 
 
 @router.delete(

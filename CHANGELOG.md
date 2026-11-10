@@ -3,6 +3,101 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версии — семантические.
 
+## [0.11.0] — 2026-11-07
+
+Результат лабораторной работы №8: наблюдаемость, диагностика и итоговый
+процесс.
+
+### Добавлено
+
+- Структурированные журналы: одна строка JSON на событие (время, уровень,
+  тип события, адрес операции, код и результат, длительность, `request_id`,
+  экземпляр, версия); Nginx пишет журнал в том же формате с тем же
+  `request_id`. Маскирование секретов в каждой записи и счётчик
+  `warehouse_log_secrets_redacted_total` (`app/logging_setup.py`).
+- Метрики `GET /metrics` (`app/metrics.py`): запросы, ошибки, время ответа,
+  запросы в обработке, версия, доступность базы, предметные — материалы ниже
+  минимума, складские операции; отказы в доступе. Через Nginx — 404.
+- Мониторинг в `docker-compose.yml`: Prometheus, Grafana (через Nginx
+  `/grafana/`), blackbox-exporter, node-exporter, cAdvisor; внутренняя сеть
+  `monitoring`, тома `prometheus_data`, `grafana_data`.
+- Конфигурация в `monitoring/`: сбор метрик, 12 правил оповещений с
+  unit-тестами (`promtool test rules`), панель «Складской учёт — обзор».
+- `scripts/check_monitoring.py` и `make monitoring-lint` (шаг 8 `make verify`,
+  этап CI «Стиль и политика качества»): у каждого правила — тест, в котором
+  оповещение срабатывает, раздел инструкции и метрики, объявленные в коде.
+- Диагностика: `make status`, `make alerts`, `make metrics-query`,
+  `make logs-find`, `make logs-secrets`, `make release-snapshot`
+  (`scripts/obs.sh`, `scripts/logs.sh`); учебные сбои — `make chaos`
+  (`scripts/chaos.sh`).
+- `make container-check`, шаг 15 — наблюдаемость в работающем окружении;
+  роль Ansible `verify` проверяет Grafana и сбор метрик на серверах.
+- `docs/observability.md`, `docs/runbook.md`, `docs/incidents/TEMPLATE.md`,
+  `docs/lab8-checklist.md`; `scripts/setup_monitoring_owners.sh` — владельцы
+  `monitoring/` в CODEOWNERS.
+
+### Изменено
+
+- Пароль Grafana `GRAFANA_ADMIN_PASSWORD`: `.env.example`, CI (случайный),
+  настройки staging, `ansible-vault` (`make vault-upgrade` дополняет
+  созданный ранее vault).
+- `deploy.sh` берёт из коммита выпуска `monitoring/` и сценарии диагностики;
+  роль `warehouse` поддерживает запущенными все сервисы выпуска.
+- Журнал доступа uvicorn отключён: запросы записывает приложение.
+- `min_test_functions` = 130.
+
+## [0.10.0] — 2026-10-28
+
+Результат лабораторной работы №7: управление конфигурацией и
+воспроизводимая инфраструктура (Ansible).
+
+### Добавлено
+
+- `infra/` — Ansible для окружений `staging` (192.168.56.20) и `production`
+  (192.168.56.30). Параметры разделены: общие, окружения, узла и секреты
+  (`ansible-vault`).
+- Роли:
+  - `common` — пакеты, обновления безопасности;
+  - `docker`;
+  - `users` — администраторы, `ansible`, `deploy`;
+  - `ssh`;
+  - `firewall` — nftables, восстановление при ручных изменениях;
+  - `warehouse` — настройки и запуск приложения;
+  - `github_runner`;
+  - `verify` — доступность, версия, сценарий, порты, права.
+- `bootstrap.yml` — подготовка чистой Debian 12, `site.yml` — приведение к
+  требуемому состоянию, `verify.yml` — только проверка.
+- Шаблоны: sshd, nftables, sudoers, `daemon.json`, настройки приложения,
+  обновления безопасности.
+- Цели make:
+  - `infra-setup`, `infra-lint`, `infra-keygen`, `infra-known-hosts`;
+  - `infra-bootstrap`, `infra-check`, `infra-apply`, `infra-idempotence`,
+    `infra-verify`;
+  - `vault-init`, `vault-edit`, `vault-view`.
+- Pipeline `Infrastructure CI` (ansible-lint, syntax-check, требования) и
+  `Infrastructure apply` (только с подтверждением; применение, повторный
+  запуск без изменений, проверка).
+- `scripts/check_infra.py` — требования к инфраструктурному коду (входят в
+  `make policy`); `scripts/setup_infra.sh` — владельцы `infra/`, окружения
+  с подтверждением, секреты.
+- `docs/infra.md`, `docs/lab7-checklist.md`.
+
+### Изменено
+
+- Проверка выпуска (`scripts/smoke_test.sh`, `deploy.sh`) получила режим
+  только для чтения (`SMOKE_READONLY`, `VERIFY_SCENARIO=0`): production не
+  получает тестовых записей.
+
+## [0.9.0] — 2026-10-20
+
+Сквозной выпуск функции по процессу ЛР6: задача → ветка → `make verify` →
+CI → образ → развёртывание в staging → проверка выпуска.
+
+### Добавлено
+
+- Отбор материалов по месту хранения: `GET /api/v1/materials?location=A-01`
+  (точное совпадение ячейки, сочетается с `q` и `below_min`) — Ф16 в ТЗ.
+
 ## [0.8.0] — 2026-10-20
 
 Результат лабораторной работы №6: непрерывная поставка в тестовое окружение

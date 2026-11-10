@@ -1,10 +1,13 @@
 """Справочник материалов и текущие остатки."""
 
+import logging
+
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app import services
 from app.db import get_db
+from app.metrics import STOCK_OPERATIONS
 from app.schemas import (
     MaterialCreate,
     MaterialRead,
@@ -14,6 +17,7 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/api/v1/materials", tags=["materials"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("", response_model=list[MaterialRead], summary="Список материалов")
@@ -69,7 +73,14 @@ def create_write_off(
     material_id: int, payload: WriteOffCreate, db: Session = Depends(get_db)
 ) -> WriteOffRead:
     """Уменьшает остаток. Списать больше, чем есть на складе, нельзя."""
-    return services.create_write_off(db, material_id, payload)
+    write_off = services.create_write_off(db, material_id, payload)
+    STOCK_OPERATIONS.labels("write_off").inc()
+    logger.info(
+        "Списание материала %s",
+        material_id,
+        extra={"event": "write_off", "material_id": material_id, "quantity": str(payload.quantity)},
+    )
+    return write_off
 
 
 @router.get(

@@ -1,0 +1,7 @@
+---
+# Коллекции Ansible — точные версии: make infra-setup → infra/collections
+collections:
+  - name: ansible.posix          # authorized_key — SSH-ключи пользователей
+    version: 1.6.2
+  - name: community.docker       # docker_compose_v2 — запуск выпуска с настройками окружения
+    version: 4.1.0

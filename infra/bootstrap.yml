@@ -1,0 +1,35 @@
+---
+# Первый запуск на ЧИСТОЙ машине Debian 12 (после установки ОС): make infra-bootstrap.
+#
+# Подключение — пользователем, созданным установщиком Debian, по паролю;
+# повышение прав — через su паролем root (sudo на чистой машине ещё нет).
+# Создаёт служебную учётную запись ansible со входом по ключу и sudo и сразу
+# применяет настройки SSH (вход только по ключам, AllowUsers с ansible) — дальше
+# всё делает site.yml от имени ansible.
+- name: Подготовка чистой машины к управлению Ansible
+  hosts: warehouse
+  gather_facts: false
+  become: true
+  become_method: ansible.builtin.su
+  tasks:
+    - name: Установить Python, sudo и acl (без них модули Ansible не работают)
+      # Обоснование: модулям Ansible нужен Python на машине, поэтому до его
+      # установки доступен только raw; при повторном запуске ничего не ставит.
+      ansible.builtin.raw: >-
+        command -v python3 >/dev/null && command -v sudo >/dev/null && dpkg -s acl >/dev/null 2>&1
+        && echo already-present
+        || (apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 sudo acl)
+      register: bootstrap_python
+      changed_when: "'already-present' not in bootstrap_python.stdout"
+
+    - name: Собрать сведения о машине
+      ansible.builtin.setup:
+
+    - name: Создать учётную запись ansible и выдать ключ доступа
+      ansible.builtin.include_role:
+        name: users
+        tasks_from: ansible_account
+
+    - name: Применить настройки SSH (вход только по ключам, разрешён ansible)
+      ansible.builtin.include_role:
+        name: ssh

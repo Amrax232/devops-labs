@@ -15,7 +15,9 @@
   - оставлять критические файлы без владельцев в .github/CODEOWNERS;
   - принимать уязвимости зависимостей без обоснования и срока пересмотра;
   - запускать задания на self-hosted runner по push и merge request, без
-    окружения staging, без ограничения одновременных развёртываний.
+    окружения staging, без ограничения одновременных развёртываний;
+  - нарушать требования к инфраструктурному коду (scripts/check_infra.py):
+    открытые секреты, необъяснимые команды, лишние порты, слабая проверка ключей.
 
 Обоснование пишется в той же строке после « - » или « — », не короче 10 символов:
     import x  # noqa: F401 - модуль регистрирует модели при импорте
@@ -52,6 +54,7 @@ REQUIRED_VERIFY_STEPS = [
     "sast",
     "deps-audit",
     "container-lint",
+    "monitoring-lint",
     "test-db",
     "coverage",
     "mutation",
@@ -64,7 +67,7 @@ PR_REQUIRED_CHECKS = ["make verify", "make container-check"]
 # Pipeline CI: какие make-цели обязаны выполняться и на каком этапе
 CI_WORKFLOW = ".github/workflows/ci.yml"
 CI_REQUIRED_TARGETS = {
-    "lint": ["policy", "lint", "container-lint"],
+    "lint": ["policy", "lint", "container-lint", "monitoring-lint"],
     "test": ["test-db", "coverage", "mutation"],
     "migrations": ["migrations-check"],
     "backup": ["backup-check"],
@@ -74,6 +77,9 @@ CI_REQUIRED_TARGETS = {
 # Развёртывание (ЛР6): self-hosted runner сервера staging
 CD_WORKFLOW = ".github/workflows/deploy.yml"
 CD_ENVIRONMENT = "staging"
+# Окружения GitHub с обязательным подтверждением, в которых работают задания
+# на self-hosted runner: развёртывание (ЛР6) и применение инфраструктуры (ЛР7)
+SELF_HOSTED_ENVIRONMENT_RE = re.compile(r"^(staging|infra-(staging|production|\$\{\{.*\}\}))$")
 FORBIDDEN_SELF_HOSTED_EVENTS = {"pull_request", "pull_request_target", "push", "issue_comment"}
 CI_PUBLISH_JOB = "publish"
 CI_GATE_JOB = "gate"
@@ -100,6 +106,13 @@ CRITICAL_FILES = [
     "deploy/stage/deploy.sh",
     ".github/workflows/deploy.yml",
     "migrations/env.py",
+    "scripts/check_infra.py",
+    ".github/workflows/infra-apply.yml",
+    # наблюдаемость (ЛР8): правила оповещений, их проверка, маскирование секретов
+    "monitoring/prometheus/rules/warehouse.yml",
+    "monitoring/prometheus/prometheus.yml",
+    "scripts/check_monitoring.py",
+    "app/logging_setup.py",
 ]
 
 SCANNED_DIRS = ["app", "scripts", "tests", "migrations"]
@@ -311,7 +324,7 @@ def check_cd() -> list[str]:
                 problems.append(f"{rel}: задание {name} на self-hosted runner запускается по {bad}")
             environment = job.get("environment") or {}
             env_name = environment.get("name") if isinstance(environment, dict) else environment
-            if env_name != CD_ENVIRONMENT:
+            if not SELF_HOSTED_ENVIRONMENT_RE.match(str(env_name or "")):
                 problems.append(f"{rel}: задание {name} на self-hosted runner без окружения")
 
     path = ROOT / CD_WORKFLOW
@@ -329,6 +342,19 @@ def check_cd() -> list[str]:
     if re.search(r"continue-on-error:\s*(true|\$\{\{)", text):
         problems.append("в развёртывании этапу разрешено падать (continue-on-error)")
     return problems
+
+
+def check_infrastructure() -> list[str]:
+    """Требования к инфраструктурному коду (ЛР7) — scripts/check_infra.py.
+
+    Здесь — правила, обязательные всегда (секреты, команды, порты). Полнота
+    настройки окружений (ключи, known_hosts, владельцы infra/) проверяется
+    в make infra-lint — в pipeline инфраструктуры.
+    """
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from check_infra import problems
+
+    return problems(strict=False)
 
 
 def check_codeowners() -> list[str]:
@@ -364,6 +390,7 @@ def main() -> int:
         + check_tests_count()
         + check_ci()
         + check_cd()
+        + check_infrastructure()
         + check_codeowners()
         + check_vulnerability_exceptions()
     )

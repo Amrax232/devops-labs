@@ -1,0 +1,74 @@
+---
+- name: Проверить, что в firewall открыты только разрешённые порты
+  ansible.builtin.assert:
+    that:
+      - (firewall_allow | map(attribute='port') | map('int') | list) is subset([ssh_port | int, warehouse_http_port | int])
+    fail_msg: "Лишний порт в firewall_allow: разрешены только SSH и HTTP приложения"
+    quiet: true
+
+- name: Записать правила firewall из шаблона
+  ansible.builtin.template:
+    src: nftables.conf.j2
+    dest: /etc/nftables.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/nft -c -f %s
+  notify: Перезагрузить правила firewall
+
+- name: Включить загрузку правил при старте системы
+  ansible.builtin.service:
+    name: nftables
+    state: started
+    enabled: true
+
+- name: Применить изменённые правила до проверки
+  ansible.builtin.meta: flush_handlers
+
+# Ручная правка (nft add rule … / nft delete …) меняет работающие правила, но не
+# файл. Поэтому работающие правила сверяются с эталоном, снятым после загрузки.
+- name: Прочитать работающие правила
+  ansible.builtin.command:
+    argv: [/usr/sbin/nft, list, table, inet, warehouse]
+  register: firewall_running
+  changed_when: false
+  check_mode: false          # только чтение: нужно и в режиме --check
+
+- name: Прочитать эталон правил
+  ansible.builtin.slurp:
+    src: "{{ firewall_snapshot }}"
+  register: firewall_expected
+  failed_when: false
+
+- name: Восстановить правила, изменённые вручную
+  # Обоснование: модуля для загрузки набора правил nftables нет; команда
+  # выполняется, только если работающие правила отличаются от эталона.
+  ansible.builtin.command:
+    argv: [/usr/sbin/nft, -f, /etc/nftables.conf]
+  when:
+    - firewall_expected.content is defined
+    - firewall_running.stdout != (firewall_expected.content | b64decode)
+  changed_when: true
+
+- name: Прочитать правила после восстановления
+  ansible.builtin.command:
+    argv: [/usr/sbin/nft, list, table, inet, warehouse]
+  register: firewall_loaded
+  changed_when: false
+  check_mode: false
+
+- name: Создать каталог эталона правил
+  ansible.builtin.file:
+    path: "{{ firewall_snapshot | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Сохранить эталон работающих правил
+  ansible.builtin.copy:
+    content: "{{ firewall_loaded.stdout }}"
+    dest: "{{ firewall_snapshot }}"
+    owner: root
+    group: root
+    mode: "0600"

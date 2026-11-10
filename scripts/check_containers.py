@@ -58,6 +58,7 @@ MUST_BE_INCLUDED = ["app/main.py", "migrations/env.py", "alembic.ini", "requirem
 PLACEHOLDER_ENV = {
     "AUTH_PASSWORD": "container-lint-placeholder",
     "POSTGRES_PASSWORD": "container-lint-placeholder",
+    "GRAFANA_ADMIN_PASSWORD": "container-lint-placeholder",
     "REGISTRY_IMAGE": "ghcr.io/container-lint/warehouse-inventory",
     "IMAGE_TAG": "0123456789abcdef0123456789abcdef01234567",
 }
@@ -332,7 +333,7 @@ def check_compose() -> list[str]:
         expected = f"{PLACEHOLDER_ENV['REGISTRY_IMAGE']}:{PLACEHOLDER_ENV['IMAGE_TAG']}"
         for name in sorted(APP_SERVICES | {"migrate"}):
             service = deployed.get(name, {})
-            if False and service.get("build"):
+            if service.get("build"):
                 problems.append(f"docker-compose.deploy.yml: {name} собирается на сервере")
             if service.get("image") != expected:
                 problems.append(f"docker-compose.deploy.yml: {name} не из реестра по IMAGE_TAG")

@@ -1,6 +1,6 @@
 [project]
 name = "warehouse-inventory"
-version = "0.7.0"
+version = "0.11.0"
 description = "Складской учёт — учебный проект по курсу «Методология и практики DevOps»"
 requires-python = ">=3.11"
 
@@ -57,4 +57,4 @@ skips = []
 # Доля мутантов в app/domain.py, которые обязаны «убить» unit-тесты, %.
 mutation_min_score = 80
 # не меньше тестовых функций (удалить тест незаметно нельзя: make policy)
-min_test_functions = 106
+min_test_functions = 130

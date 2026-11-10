@@ -27,6 +27,7 @@
 | Ф13 | Списание материала | U, A, I | `test_write_off_decreases_stock` (U и A), `test_whole_stock_can_be_written_off`, `test_concurrent_write_offs_do_not_overdraw_stock` |
 | Ф14 | История списаний | A | `test_write_off_history_is_newest_first` |
 | Ф15 | Разграничение прав доступа | A | `test_anonymous_user_can_read`, `test_no_read_route_requires_credentials`, `test_correct_credentials_allow_changes` |
+| Ф16 | Отбор материалов по месту хранения | A | `test_materials_filtered_by_location` |
 
 ## Ограничения и правила
 
@@ -66,9 +67,9 @@
 
 | | Всего пунктов | Покрыто тестами | Доля |
 |---|---|---|---|
-| Функции (Ф1–Ф15) | 15 | 15 | 100 % |
+| Функции (Ф1–Ф16) | 16 | 16 | 100 % |
 | Правила и ограничения (П1–П15) | 15 | 15 | 100 % |
-| **Всего** | **30** | **30** | **100 %** (требуется не менее 40 %) |
+| **Всего** | **31** | **31** | **100 %** (требуется не менее 40 %) |
 
 Помимо покрытия по пунктам ТЗ контролируются ещё две метрики:
 

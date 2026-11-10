@@ -146,6 +146,7 @@ curl -X POST http://localhost:8000/api/v1/materials \
 # поиск по названию/артикулу и фильтр «ниже минимума»
 curl 'http://localhost:8000/api/v1/materials?q=болт'
 curl 'http://localhost:8000/api/v1/materials?below_min=true'
+curl 'http://localhost:8000/api/v1/materials?location=A-01'      # только ячейка A-01 (точное совпадение)
 
 # изменить минимальный запас
 curl -X PATCH http://localhost:8000/api/v1/materials/1 \

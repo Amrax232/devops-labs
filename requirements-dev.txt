@@ -10,4 +10,6 @@ ruff==0.8.4
 
 # статический анализ безопасности (SAST)
 bandit[toml]==1.8.0
-pip-audit
+
+# уязвимости зависимостей (make deps-audit)
+pip-audit==2.7.3

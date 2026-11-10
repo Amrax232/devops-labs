@@ -1,0 +1,37 @@
+---
+- name: Задать имя машины
+  ansible.builtin.hostname:
+    name: "{{ common_hostname }}"
+
+- name: Записать адреса машин лабораторной сети в /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^\S+\s+{{ item.key }}$'
+    line: "{{ item.value }}  {{ item.key }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ lab_hosts | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Установить базовые пакеты
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: "{{ common_apt_cache_valid_time }}"
+
+- name: Удалить лишние пакеты и сетевые сервисы
+  ansible.builtin.apt:
+    name: "{{ common_absent_packages }}"
+    state: absent
+    purge: true
+
+- name: Включить автоматическую установку обновлений безопасности
+  ansible.builtin.template:
+    src: 20auto-upgrades.j2
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
