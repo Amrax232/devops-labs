@@ -163,6 +163,8 @@ jobs:
       - name: Тег образа — версия и commit SHA
         id: version
         run: echo "version=$APP_VERSION" >> "$GITHUB_OUTPUT"
+      - name: Установить jq для проверки мониторинга
+        run: sudo apt-get update && sudo apt-get install -y jq
       - name: make container-check — сборка, запуск и 14 проверок окружения
         env:
           APP_REVISION: ${{ env.VCS_REF }}
